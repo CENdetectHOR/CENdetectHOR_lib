@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from hmmlearn import hmm
 from pyhmmer import plan7
+from sklearn.preprocessing import normalize
 
 defaultTransProb = np.array([[
     9.7468591e-01, 1.2656685e-02, 1.2656685e-02, 2.3076856e-01,
@@ -24,7 +25,7 @@ def toHMM(phmm: plan7.HMM,
     m2m_new = np.roll(np.diag(m2m), 1, axis=1)
     for i in range(phmm.M):
         for j in range(phmm.M):
-            dTransProb = np.prod(d2d[i + 1 : j]) if j > i + 1 else np.prod(d2d[:max(j - 1, 0)]) * np.prod(d2d[i + 1:])
+            dTransProb = np.prod(d2d[i + 1 : j]) if j > i + 1 else np.prod(d2d[:j]) * np.prod(d2d[i + 1:])
             m2m_new[i,j] += m2d[i] * dTransProb * dSilentClosure * d2m[j-1]
     hmModel = hmm.CategoricalHMM(
         n_components=phmm.M * 2,
@@ -35,5 +36,8 @@ def toHMM(phmm: plan7.HMM,
         [np.roll(np.diag(i2m), 1, axis=1), np.roll(np.diag(i2i), 1, axis=1)]])
     hmModel.startprob_ = hmModel.transmat_[:phmm.M].mean(0)
     hmModel.emissionprob_ = np.concatenate((matchEmissionProb, insertEmissionProb))
+    hmModel.transmat_ = normalize(hmModel.transmat_, axis=1, norm='l1')
+    hmModel.emissionprob_ = normalize(hmModel.emissionprob_, axis=1, norm='l1')
+    hmModel.startprob_ = np.transpose(normalize(hmModel.startprob_[:,np.newaxis], axis=0, norm='l1'))[0]
     return hmModel
 
