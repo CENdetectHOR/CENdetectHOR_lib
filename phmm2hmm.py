@@ -8,15 +8,28 @@ defaultTransProb = np.array([[
     9.7468591e-01, 1.2656685e-02, 1.2656685e-02, 2.3076856e-01,
     7.6923406e-01, 3.3333409e-01, 6.6666341e-01]])
 
-defaultInsertEmissionProb = np.full((1, 4), 0.25)
+defaultInsertEmission = np.full((1, 4), 0.25)
 
 def toHMM(phmm: plan7.HMM,
           edgeTransProb = defaultTransProb,
-          edgeInsertEmissionProb = defaultInsertEmissionProb):
+          edgeInsertEmission = defaultInsertEmission) -> hmm.CategoricalHMM:
+    """Convert a pHMM in HMMER format to a cyclic HMM in hmmlearn
+    
+    Convert a Profile Hidden Markov Model represented in HMMER Plan7 format
+    to a standard categorical HMM.
+    Match and inserttion states from pHMM are converted to corresponding nodes of the output HMM.
+    Deletion states in pHMM are 'silent' (do not emit) so cannot be copied to the output HMM.
+    They are emulated in the HMM by collapsing them as transitions between arbitrary match states, 
+    with corresponding probabilities.
+    The pHMM is interpreted as cyclic, considering that the final states (M_n, D_n, I_n) connect
+    back to the first ones (M_1, D_1). Rather than reusing existing edge transition probabilites
+    (either the ones from begin to M_1, D_1 or from M_n, D_n, I_n to end) and edge insert emitions
+    (from I_n), novel values are provided as parameters (edgeTransProb, edgeInsertEmission). 
+    """
     matchEmissionProb = np.delete(phmm.match_emissions, 0, axis=0)
     insertEmissionProb = np.concatenate((
         np.delete(phmm.insert_emissions, [0, phmm.M], axis=0),
-        edgeInsertEmissionProb))
+        edgeInsertEmission))
     baseTransProb = np.concatenate((
         np.delete(phmm.transition_probabilities, [0, phmm.M], axis=0),
         edgeTransProb))
