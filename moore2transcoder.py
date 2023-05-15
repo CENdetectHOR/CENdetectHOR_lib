@@ -6,25 +6,31 @@ from frtt import FunctionalRealtimeTransducer
 def normalize_trans(trans_row):
     return [(prob,trans_row[pos][1]) for pos,prob in enumerate(normalize([[prob for prob,new_state in trans_row]], norm='l1')[0])]
 
-def toDecoder(smm: StochasticMooreMachine, cutoff_prob=None) -> FunctionalRealtimeTransducer:
+def to_decoder(smm: StochasticMooreMachine, cutoff_prob=None) -> FunctionalRealtimeTransducer:
     """From a stochastic Moore machine, derive a quasi-optimal encoding
     """
+    
+    # Now supporting only binary encoding, to be possibly extended in the future
+    encoding_alphabet_size = 2
 
-    input_trans = {input_state:sorted([(prob, new_state) for new_state, prob in enumerate(row)], reverse=True) for input_state, row in enumerate(smm.transitionMatrix)}
+    input_trans = {
+        input_state:sorted([(prob, new_state) for new_state, prob in enumerate(row)], reverse=True)
+        for input_state, row in enumerate(smm.trans_prob)
+    }
     output_trans = {}
-    num_states = np.shape(smm.transitionMatrix)[0]
-    #deterministic_states = num_states
+    num_output_states = smm.num_states
     curr_state = 0
-    target = 0.5
+    target_prob = 1.0 / encoding_alphabet_size
 
     def get_new_state():
-        num_states += 1
-        return num_states - 1
+        nonlocal num_output_states
+        num_output_states += 1
+        return num_output_states - 1
 
     while(True):
         # print("Curr state: " + curr_state)
 
-        if (input_trans[curr_state][0][0] > target):
+        if (input_trans[curr_state][0][0] > target_prob):
             curr_prob = 1.0
             curr_diff = 1.0
             num_grouped_rows = 0
@@ -32,7 +38,7 @@ def toDecoder(smm: StochasticMooreMachine, cutoff_prob=None) -> FunctionalRealti
             curr_ahead_state = curr_state
             while(True):
                 prob,next_state = input_trans[curr_ahead_state][0]
-                new_diff = abs(curr_prob * prob - target)
+                new_diff = abs(curr_prob * prob - target_prob)
                 if new_diff >= curr_diff:
                     break
                 curr_prob *= prob
@@ -67,7 +73,7 @@ def toDecoder(smm: StochasticMooreMachine, cutoff_prob=None) -> FunctionalRealti
             curr_diff = 1.0
             num_grouped_rows = 0
             for prob,next_state in input_trans[curr_state]:
-                new_diff = abs(curr_prob + prob - target)
+                new_diff = abs(curr_prob + prob - target_prob)
                 if new_diff >= curr_diff:
                     break
                 curr_prob += prob
@@ -91,6 +97,6 @@ def toDecoder(smm: StochasticMooreMachine, cutoff_prob=None) -> FunctionalRealti
         output_trans[curr_state] = {0:(state_zero_num,state_zero_output), 1:(state_one_num,state_one_output)}
 
         curr_state += 1
-        if (curr_state >= num_states):
+        if (curr_state >= num_output_states):
             break
-    return output_trans
+    return FunctionalRealtimeTransducer(num_output_states, range(encoding_alphabet_size), range(smm.num_states), output_trans)
