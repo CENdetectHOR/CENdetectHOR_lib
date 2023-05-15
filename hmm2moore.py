@@ -28,7 +28,7 @@ def to_moore(input_hmm: hmm.CategoricalHMM, exit_prob) -> StochasticMooreMachine
     non_final_state_to_initial_state = np.reshape(np.zeros(n_states - 1),(n_states - 1,1))
     non_final_state_to_intermediate_state = np.vstack((
         initial_state_to_intermediate_state,
-        intermediate_state_to_intermediate_state)),
+        intermediate_state_to_intermediate_state))
     non_final_state_to_final_state = (
         np.reshape(np.ones(n_states - 1),(n_states - 1,1))
         * exit_prob)
