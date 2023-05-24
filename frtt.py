@@ -4,36 +4,75 @@ class FunctionalRealtimeTransducer(object):
     """Functional (completely specified deterministic) real-time transducer
     """
 
-    def __init__(self, num_states, input_alphabet, output_alphabet, transitions):
+    def __init__(self, transitions, input_alphabet = None, output_alphabet = None, epsilon = None, initial_state = None):
         """
-        num_states: Number of states
+        states: Set of state identifiers
         input_alphabet: Alphabet for input
         output_alphabet: Alphabet for output
         transitions: Transition Table
+        epsilon: Special symbol used for transition without reading input
         """
 
-        self.num_states = num_states
-        self.input_alphabet = input_alphabet
-        self.output_alphabet = output_alphabet
+        self.states = frozenset(transitions.keys())
+        self.initial_state = initial_state if initial_state is not None else min(self.states)
+        self.input_alphabet = frozenset(input_alphabet or [
+            input_symbol
+            for trans in transitions.values()
+            for input_symbol in trans.keys()
+            if epsilon is None or input_symbol != epsilon
+        ])
+        self.output_alphabet = frozenset(output_alphabet or [
+            output_symbol
+            for trans in transitions.values()
+            for _,output in trans.values()
+            for output_symbol in output
+        ])
         self.transitions = transitions
+        self.epsilon = epsilon
     
-    def transcode(self, input):
-        """Return Moore Machine's output when a given list (or string) is given as input"""
-        temp_list = list(input)
-        output = []
-        current_state = self.initial_state
-        output.extend(self.output_table[current_state])
-        for x in temp_list:
-            current_state = self.transitions[current_state][x]
-            output.extend(self.output_table[current_state])
+    def epsilon_closure(self, state_and_output=(0,[]), trace=None):
+        state,output = state_and_output
+        silents_state_seq = []
+        while(self.epsilon in self.transitions[state]):
+            state,new_output = self.transitions[state][self.epsilon]
+            if len(new_output) == 0:
+                if state in silents_state_seq:
+                    break
+                silents_state_seq.append(state)
+            else:
+                silents_state_seq = []
+                output = output + new_output
+            state_seq = state_seq + [state]
+            if trace is not None:
+                trace = trace + [(state,new_output)]
+        return state,output,trace
 
+    def transition(self, state_and_output, input, trace=None):
+        state,output = state_and_output
+        if input not in self.transitions[state]:
+            raise Exception("Unexpected input " + str(input) + " in state " + str(state))
+        state,new_output = self.transitions[state][input]
+        output = output + new_output
+        if trace is not None:
+            trace = trace + [(state,new_output)]
+        state,output,trace = self.epsilon_closure((state,output), trace=trace)
+        return state,output,trace
+
+    def transcode(self, input, show_trace=False):
+        """Return Moore Machine's output when a given list (or string) is given as input"""
+        #temp_list = list(input)
+        current_state,output,trace = self.epsilon_closure(trace=[] if show_trace else None)
+        for x in input:
+            current_state,output,trace = self.transition((current_state,output),x,trace=trace)
+        if show_trace:
+            return output,trace
         return output
 
     def __str__(self):
         """"Pretty Print the Transducer"""
 
         output = "\nFunctional (completely specified deterministic) real-time transducer" + \
-                 "\nNum States " + str(self.num_states) + \
+                 "\nNum States " + str(len(self.states)) + \
                  "\nInput Alphabet " + str(self.input_alphabet) + \
                  "\nOutput Alphabet " + str(self.output_alphabet) + \
                  "\nTransitions " + str(self.transitions)
