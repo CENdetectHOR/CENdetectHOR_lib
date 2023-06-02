@@ -38,7 +38,7 @@ def normalize_loop(loop_seq):
     def invert_pos(pos):
         len(loop_seq) - pos if pos > 0 else 0
     options = []
-    for start_index in len(loop_seq):
+    for start_index in range(len(loop_seq)):
         options.append(loop_seq[start_index:] + loop_seq[:start_index] + [start_index])
     options.sort()
     return options[0][:-1],invert_pos(options[0][-1])
@@ -68,7 +68,7 @@ def find_loops(seq, max_loop_size = 20, min_loops = 4):
         # curr_loops[loop_size] = 0
         
     for curr_position, curr_symbol in enumerate(seq):
-        for loop_size in range(min(max_loop_size, curr_position)):
+        for loop_size in range(1, min(max_loop_size, curr_position) + 1):
             if seq[curr_position - loop_size] == curr_symbol:
                 curr_loops[loop_size] += 1
             else:
@@ -80,7 +80,7 @@ def find_loops(seq, max_loop_size = 20, min_loops = 4):
 
     return loops_found.values()
 
-def clusterings_with_hors(distance_matrix, max_num_clusters: None):
+def clusterings_with_hors(distance_matrix, max_num_clusters = None):
     if max_num_clusters is None:
         max_num_clusters = distance_matrix.shape[0] / 4
     last_num_clusters = max_num_clusters + 1
@@ -96,6 +96,10 @@ def clusterings_with_hors(distance_matrix, max_num_clusters: None):
             seq_as_clusters = [seq_to_cluster[seq_pos] for seq_pos in range(distance_matrix.shape[0])]
             loops = find_loops(seq_as_clusters)
             seq_as_clusters_txt = "".join([chr(65 + cluster_index) for cluster_index in seq_as_clusters])
-            clusterings.append(len(clusters), clusters, seq_to_cluster, seq_as_clusters, loops, seq_as_clusters_txt)
+            clusterings.append((
+                len(clusters), clusters, seq_to_cluster,
+                seq_as_clusters, loops, seq_as_clusters_txt
+            ))
+            last_num_clusters = len(clusters)
     return clusterings
 
