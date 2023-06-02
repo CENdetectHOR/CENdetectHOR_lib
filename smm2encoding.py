@@ -1,8 +1,10 @@
 from collections import defaultdict
 import numpy as np
 from sklearn.preprocessing import normalize
-from stochasticmoore import StochasticMooreMachine
+from smm import StochasticMooreMachine
 from frtt import FunctionalRealtimeTransducer
+from simplifyTransducer import simplify_transducer
+from reverseTransducer import reverse_transducer
 
 EPSILON = -1
 
@@ -28,7 +30,7 @@ def normalize_trans(trans_row):
         )
     ]
 
-def to_decoder(
+def smm_to_autoencoder(
         smm: StochasticMooreMachine,
         cutoff_prob=0.0,
         base_prob=None,
@@ -233,9 +235,17 @@ def to_decoder(
         curr_state += 1
         if (curr_state >= num_output_states):
             break
-    return FunctionalRealtimeTransducer(
-        deterministic_trans,
-        initial_state = 0,
-        input_alphabet = range(encoding_alphabet_size),
-        output_alphabet = range(smm.num_states),
-        epsilon = EPSILON)
+
+    decoder = simplify_transducer(
+        FunctionalRealtimeTransducer(
+            deterministic_trans,
+            initial_state = 0,
+            input_alphabet = range(encoding_alphabet_size),
+            output_alphabet = range(smm.num_states),
+            epsilon = EPSILON
+        )
+    )
+
+    encoder = simplify_transducer(reverse_transducer(decoder))
+
+    return encoder,decoder

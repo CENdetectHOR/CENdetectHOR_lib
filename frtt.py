@@ -59,7 +59,7 @@ class FunctionalRealtimeTransducer(object):
         return state,output,trace
 
     def transcode(self, input, show_trace=False):
-        """Return Moore Machine's output when a given list (or string) is given as input"""
+        """Return transducer's output when a given list (or string) is given as input"""
         #temp_list = list(input)
         current_state,output,trace = self.epsilon_closure(trace=[] if show_trace else None)
         for x in input:
@@ -67,6 +67,9 @@ class FunctionalRealtimeTransducer(object):
         if show_trace:
             return output,trace
         return output
+    
+    def get_execution(self):
+        return FrttExecution(self)
 
     def __str__(self):
         """"Pretty Print the Transducer"""
@@ -78,7 +81,28 @@ class FunctionalRealtimeTransducer(object):
                  "\nTransitions " + str(self.transitions)
 
         return output
+    
+class FrttExecution(object):
+    def __init__(self, transducer: FunctionalRealtimeTransducer):
+        self.transducer = transducer
+        self.curr_state = transducer.initial_state
+        self.curr_state, self.output_cache, _ = self.transducer.epsilon_closure(
+            (self.curr_state, []))
 
+    def write_symbol(self, input_symbol):
+        self.curr_state, self.output_cache, _ = self.transducer.transition(
+            (self.curr_state, self.output_cache), input_symbol)
+
+    def write(self, input):
+        for input_symbol in input:
+            self.write_symbol(input_symbol)
+
+    def read(self, input = []):
+        self.write(input)
+        output = self.output_cache
+        self.output_cache = []
+        return output
+    
 """
 transducer = FunctionalRealtimeTransducer(
     4, ['a' , 'b'], ['c', 'd'],
