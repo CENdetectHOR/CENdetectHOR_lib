@@ -34,14 +34,17 @@ def connected_components(adjacency_matrix, min_size=2):
 def distance_values(matrix):
     return matrix[np.triu_indices(matrix.shape[0], k = 1)]
 
+def get_seq_as_txt(seq):
+    return "".join([chr(65 + symbol) for symbol in seq])
+
 def normalize_loop(loop_seq):
     def invert_pos(pos):
-        len(loop_seq) - pos if pos > 0 else 0
+        return len(loop_seq) - pos if pos > 0 else 0
     options = []
     for start_index in range(len(loop_seq)):
         options.append(loop_seq[start_index:] + loop_seq[:start_index] + [start_index])
     options.sort()
-    return options[0][:-1],invert_pos(options[0][-1])
+    return (options[0][:-1],invert_pos(options[0][-1]))
 
 def find_loops(seq, max_loop_size = 20, min_loops = 4):
     loops_found = {} #defaultdict(list)
@@ -49,15 +52,16 @@ def find_loops(seq, max_loop_size = 20, min_loops = 4):
 
     def last_of_size(curr_position, loop_size):
         if curr_loops[loop_size] >= min_loops * loop_size:
-            loop_start = curr_position - curr_loops[loop_size]
-            loop_length = curr_loops[loop_size]
+            loop_start = curr_position - curr_loops[loop_size] - loop_size
+            loop_length = curr_loops[loop_size] + loop_size
             loop_laps = loop_length // loop_size
             loop_items = seq[loop_start:loop_start + loop_size]
-            normal_loop, in_loop_start_position = normalize_loop(loop_items)
+            (normal_loop, in_loop_start_position) = normalize_loop(loop_items)
             normal_loop_str = str(normal_loop)
             if normal_loop_str not in loops_found:
                 loops_found[normal_loop_str] = (
                     normal_loop,
+                    get_seq_as_txt(normal_loop),
                     [(loop_start, loop_length, loop_laps, in_loop_start_position)]
                 )
             else:
@@ -68,19 +72,25 @@ def find_loops(seq, max_loop_size = 20, min_loops = 4):
         # curr_loops[loop_size] = 0
         
     for curr_position, curr_symbol in enumerate(seq):
+        max_loop_length_closed = 0
         for loop_size in range(1, min(max_loop_size, curr_position) + 1):
             if seq[curr_position - loop_size] == curr_symbol:
                 curr_loops[loop_size] += 1
             else:
-                last_of_size(curr_position, loop_size)
+                if curr_loops[loop_size] > max_loop_length_closed:
+                    last_of_size(curr_position, loop_size)
+                    max_loop_length_closed = curr_loops[loop_size]
                 curr_loops[loop_size] = 0
     
+    max_loop_length_closed = 0
     for loop_size in range(1, max_loop_size + 1):
-        last_of_size(len(seq), loop_size)
+        if curr_loops[loop_size] > max_loop_length_closed:
+            last_of_size(len(seq), loop_size)
+            max_loop_length_closed = curr_loops[loop_size]
 
     return loops_found.values()
 
-def clusterings_with_hors(distance_matrix, max_num_clusters = None):
+def clusterings_with_hors(distance_matrix, max_num_clusters = None, require_loop = True):
     if max_num_clusters is None:
         max_num_clusters = distance_matrix.shape[0] / 4
     last_num_clusters = max_num_clusters + 1
@@ -95,11 +105,11 @@ def clusterings_with_hors(distance_matrix, max_num_clusters = None):
             }
             seq_as_clusters = [seq_to_cluster[seq_pos] for seq_pos in range(distance_matrix.shape[0])]
             loops = find_loops(seq_as_clusters)
-            seq_as_clusters_txt = "".join([chr(65 + cluster_index) for cluster_index in seq_as_clusters])
-            clusterings.append((
-                len(clusters), clusters, seq_to_cluster,
-                seq_as_clusters, loops, seq_as_clusters_txt
-            ))
+            if len(loops) > 0 or not require_loop:
+                clusterings.append((
+                    len(clusters), clusters, seq_to_cluster,
+                    seq_as_clusters, loops, get_seq_as_txt(seq_as_clusters)
+                ))
             last_num_clusters = len(clusters)
     return clusterings
 
