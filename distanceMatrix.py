@@ -1,3 +1,4 @@
+from typing import List
 import numpy as np
 import editdistance
 from collections import defaultdict
@@ -46,6 +47,51 @@ def normalize_loop(loop_seq):
     options.sort()
     return (options[0][:-1],invert_pos(options[0][-1]))
 
+def denormalize_loop(loop_seq, in_loop_start):
+    return loop_seq[in_loop_start:] + loop_seq[:in_loop_start]
+
+class Loop:
+    loop_seq: List[int]
+
+    def __init__(self, loop_seq):
+        self.loop_seq = loop_seq
+
+    def __str__(self):
+        return get_seq_as_txt(self.loop_seq)
+
+class LoopSpanInSeq:
+    def __init__(self, span_start, span_length, num_of_laps, in_loop_start):
+        self.span_start = span_start
+        self.span_length = span_length
+        self.num_of_laps = num_of_laps
+        self.in_loop_start = in_loop_start
+
+    def __str__(self):
+        return (
+            f'[{self.span_start}:{self.span_start + self.span_length}]' +
+            (f'#{self.in_loop_start}' if self.in_loop_start != 0 else '')
+        )
+
+class LoopInSeq:
+    loop: Loop
+    spans_in_seq: List[LoopSpanInSeq]
+
+    def __init__(self, loop, spans_in_seq = []):
+        self.loop = loop
+        self.spans_in_seq = spans_in_seq
+
+    def add_span(self, span_in_seq):
+        self.spans_in_seq.append(span_in_seq)
+
+    def __str__(self):
+        return (
+            f'{self.loop}' +
+            (
+                f' in {",".join([str(span) for span in self.spans_in_seq])}'
+                    if len(self.spans_in_seq) > 0 else ''
+            )
+        )
+
 def find_loops(seq, max_loop_size = 20, min_loops = 4):
     loops_found = {} #defaultdict(list)
     curr_loops = {loop_size:0 for loop_size in range(1, max_loop_size + 1)}
@@ -58,18 +104,14 @@ def find_loops(seq, max_loop_size = 20, min_loops = 4):
             loop_items = seq[loop_start:loop_start + loop_size]
             (normal_loop, in_loop_start_position) = normalize_loop(loop_items)
             normal_loop_str = str(normal_loop)
+            loop_span = LoopSpanInSeq(loop_start, loop_length, loop_laps, in_loop_start_position)
             if normal_loop_str not in loops_found:
-                loops_found[normal_loop_str] = (
-                    normal_loop,
-                    get_seq_as_txt(normal_loop),
-                    [(loop_start, loop_length, loop_laps, in_loop_start_position)]
+                loops_found[normal_loop_str] = LoopInSeq(
+                    Loop(normal_loop),
+                    [loop_span]
                 )
             else:
-                loops_found[normal_loop_str][1].append((
-                    loop_start, loop_length, loop_laps, in_loop_start_position
-                ))
-
-        # curr_loops[loop_size] = 0
+                loops_found[normal_loop_str].add_span(loop_span)
         
     for curr_position, curr_symbol in enumerate(seq):
         max_loop_length_closed = 0
@@ -88,7 +130,44 @@ def find_loops(seq, max_loop_size = 20, min_loops = 4):
             last_of_size(len(seq), loop_size)
             max_loop_length_closed = curr_loops[loop_size]
 
-    return loops_found.values()
+    loops = list(loops_found.values())
+
+    for loop in loops:
+        spans = loop.spans_in_seq
+        if all([span.in_loop_start == spans[0].in_loop_start for span in spans]):
+            loop.loop.loop_seq = denormalize_loop(loop.loop.loop_seq, spans[0].in_loop_start)
+            for span in spans:
+                span.in_loop_start = 0
+
+    return loops
+
+class ClusteredSeq:
+    def __init__(self, clusters, loops = []):
+        self.clusters = clusters
+        self.loops = []
+        self.loops.extend(loops)
+        self.seq_to_cluster = {
+            seq_index:cluster_index
+            for cluster_index, cluster in enumerate(clusters)
+            for seq_index in cluster
+        }
+        self.seq_as_clusters = [
+            self.seq_to_cluster[seq_pos] for seq_pos in sorted(self.seq_to_cluster.keys())
+        ]
+
+    def add_loop(self, loop):
+        self.loops.append(loop)
+
+    def add_loops(self, loops):
+        self.loops.extend(loops)
+
+    def __str__(self):
+        return (
+            f'Num clusters: {len(self.clusters)}, ' +
+            f'Seq: {get_seq_as_txt(self.seq_as_clusters)}, ' +
+            f'Loops: {[str(loop) for loop in self.loops]}'
+        )
+
 
 def clusterings_with_hors(distance_matrix, max_num_clusters = None, require_loop = True):
     if max_num_clusters is None:
@@ -98,18 +177,11 @@ def clusterings_with_hors(distance_matrix, max_num_clusters = None, require_loop
     for max_distance in range(distance_matrix.max()):
         clusters = connected_components(distance_matrix <= max_distance, min_size=1)
         if len(clusters) < last_num_clusters:
-            seq_to_cluster = {
-                seq_index:cluster_index
-                for cluster_index, cluster in enumerate(clusters)
-                for seq_index in cluster
-            }
-            seq_as_clusters = [seq_to_cluster[seq_pos] for seq_pos in range(distance_matrix.shape[0])]
-            loops = find_loops(seq_as_clusters)
+            clustered_seq = ClusteredSeq(clusters)
+            loops = find_loops(clustered_seq.seq_as_clusters)
+            clustered_seq.add_loops(loops)
             if len(loops) > 0 or not require_loop:
-                clusterings.append((
-                    len(clusters), clusters, seq_to_cluster,
-                    seq_as_clusters, loops, get_seq_as_txt(seq_as_clusters)
-                ))
+                clusterings.append(clustered_seq)
             last_num_clusters = len(clusters)
     return clusterings
 
