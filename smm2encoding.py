@@ -35,7 +35,7 @@ def smm_to_autoencoder(
         cutoff_prob=0.0,
         base_prob=None,
         multi_symbol_encoding=True,
-        multi_symbol_depth_limit=None) -> FunctionalRealtimeTransducer:
+        multi_symbol_depth_limit=None) -> tuple[FunctionalRealtimeTransducer,FunctionalRealtimeTransducer]:
     """From a stochastic Moore machine, derive a quasi-optimal encoding
     """
     
