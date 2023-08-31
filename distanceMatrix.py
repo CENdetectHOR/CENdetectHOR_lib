@@ -2,6 +2,10 @@ from typing import List
 import numpy as np
 import editdistance
 from collections import defaultdict
+from math import log2, ceil
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import floyd_warshall
+
 
 def build_distance_matrix(seq_blocks):
     seq_dists = np.array([
@@ -9,17 +13,45 @@ def build_distance_matrix(seq_blocks):
     seq_dists.shape = (len(seq_blocks), len(seq_blocks))
     return seq_dists
 
-def matrix_closure(adjacency_matrix):
+# def matrix_closure(adjacency_matrix, base_matrix_closure=None, check_interval=1):
+#     matrix_closure = adjacency_matrix
+#     if base_matrix_closure is not None:
+#         matrix_closure = matrix_closure | np.matmul(matrix_closure, base_matrix_closure)
+#         if np.array_equal(matrix_closure, base_matrix_closure):
+#             return matrix_closure
+#     for remaining_steps in range(ceil(log2(adjacency_matrix.shape[0])),0,-1):
+#         new_matrix_closure = matrix_closure | np.matmul(matrix_closure, matrix_closure)
+#         if remaining_steps > 1 and (remaining_steps % check_interval == 0) and np.array_equal(new_matrix_closure, matrix_closure):
+#             break
+#         matrix_closure = new_matrix_closure
+#     return matrix_closure
+
+def matrix_closure(adjacency_matrix, base_matrix_closure=None, check_interval=1, sparse_matrix=False):
+    if sparse_matrix:
+        # if base_matrix_closure is not None:
+        #     matrix_closure = csr_matrix(matrix_closure)
+        #     base_matrix_closure = csr_matrix(base_matrix_closure)
+        #     matrix_closure = matrix_closure | matrix_closure @ base_matrix_closure
+        return 1*np.isfinite(floyd_warshall(csgraph=adjacency_matrix, directed=False))
     matrix_closure = adjacency_matrix
+    if base_matrix_closure is not None:
+        matrix_closure = matrix_closure | matrix_closure @ base_matrix_closure
+        if np.array_equal(matrix_closure, base_matrix_closure):
+            return matrix_closure
+    # for remaining_steps in range(ceil(log2(adjacency_matrix.shape[0])),0,-1):
+    #     new_matrix_closure = matrix_closure | np.matmul(matrix_closure, matrix_closure)
+    #     if remaining_steps > 1 and (remaining_steps % check_interval == 0) and np.array_equal(new_matrix_closure, matrix_closure):
+    #         break
+    #     matrix_closure = new_matrix_closure
     while True:
-        new_matrix_closure = matrix_closure | np.matmul(matrix_closure, adjacency_matrix)
+        new_matrix_closure = matrix_closure | matrix_closure @ matrix_closure
         if np.array_equal(new_matrix_closure, matrix_closure):
             break
         matrix_closure = new_matrix_closure
     return matrix_closure
 
-def connected_components(adjacency_matrix, min_size=2):
-    reachability_matrix = matrix_closure(adjacency_matrix)
+def connected_components(adjacency_matrix, min_size=2, return_matrix=False, base_matrix_closure=None, closure_check_interval=1, sparse_matrix=False):
+    reachability_matrix = matrix_closure(adjacency_matrix, base_matrix_closure=base_matrix_closure, check_interval=closure_check_interval, sparse_matrix=sparse_matrix)
     components = {}
     for curr_node in range(adjacency_matrix.shape[0]):
         existing_cluster_found = False
@@ -30,13 +62,17 @@ def connected_components(adjacency_matrix, min_size=2):
                 break
         if not existing_cluster_found:
             components[curr_node] = [curr_node]
-    return [component for component in components.values() if len(component) >= min_size]
+    result = [component for component in components.values() if len(component) >= min_size]
+    if return_matrix:
+        return result, reachability_matrix
+    else:
+        return result
 
 def distance_values(matrix):
     return matrix[np.triu_indices(matrix.shape[0], k = 1)]
 
 def get_seq_as_txt(seq):
-    return "".join([chr(65 + symbol) for symbol in seq])
+    return "".join([(chr(65 + symbol) if symbol < 26 else (chr(71 + symbol) if symbol < 52 else '*')) for symbol in seq])
 
 def normalize_loop(loop_seq):
     def invert_pos(pos):
@@ -92,7 +128,7 @@ class LoopInSeq:
             )
         )
 
-def find_loops(seq, max_loop_size = 20, min_loops = 4):
+def find_loops(seq, min_loop_size = 2, max_loop_size = 20, min_loops = 4):
     loops_found = {} #defaultdict(list)
     curr_loops = {loop_size:0 for loop_size in range(1, max_loop_size + 1)}
 
@@ -132,6 +168,9 @@ def find_loops(seq, max_loop_size = 20, min_loops = 4):
 
     loops = list(loops_found.values())
 
+    if min_loop_size > 1:
+        loops = [loop for loop in loops if len(loop.loop.loop_seq) >= min_loop_size]
+
     for loop in loops:
         spans = loop.spans_in_seq
         if all([span.in_loop_start == spans[0].in_loop_start for span in spans]):
@@ -168,20 +207,43 @@ class ClusteredSeq:
             f'Loops: {[str(loop) for loop in self.loops]}'
         )
 
+def matrix_sparsity(matrix):
+    return 1.0 - np.count_nonzero(matrix) / matrix.size
 
-def clusterings_with_hors(distance_matrix, max_num_clusters = None, require_loop = True):
+
+def clusterings_with_hors(
+        distance_matrix, min_distance=0, max_num_clusters=None, order_clusters=True,
+        require_loop=True, min_len_loop=2,
+        closure_check_interval=1, closure_sparsity_threshold = 0.5):
     if max_num_clusters is None:
         max_num_clusters = distance_matrix.shape[0] / 4
     last_num_clusters = max_num_clusters + 1
     clusterings = []
-    for max_distance in range(distance_matrix.max()):
-        clusters = connected_components(distance_matrix <= max_distance, min_size=1)
+    curr_closure_matrix = None
+    sparse_matrix = True
+    for max_distance in range(min_distance, distance_matrix.max()):
+        print(f'Checking clusters for max distance {max_distance}...')
+        adjancecy_matrix = distance_matrix <= max_distance
+        if sparse_matrix and matrix_sparsity(adjancecy_matrix) < closure_sparsity_threshold:
+            sparse_matrix = False
+        clusters,curr_closure_matrix = connected_components(
+            adjancecy_matrix, min_size=1, return_matrix=True,
+            base_matrix_closure=curr_closure_matrix,
+            closure_check_interval=closure_check_interval,
+            sparse_matrix=sparse_matrix)
+        if order_clusters:
+            clusters.sort(key=len, reverse=True)
+        print(f'Found {len(clusters)} clusters')
         if len(clusters) < last_num_clusters:
             clustered_seq = ClusteredSeq(clusters)
-            loops = find_loops(clustered_seq.seq_as_clusters)
+            print(f'Looking for loops in {str(clustered_seq)}...')
+            loops = find_loops(clustered_seq.seq_as_clusters, min_loop_size=min_len_loop)
             clustered_seq.add_loops(loops)
             if len(loops) > 0 or not require_loop:
                 clusterings.append(clustered_seq)
             last_num_clusters = len(clusters)
+            # print(f'Loops: {loops}')
+            if last_num_clusters <= 1:
+                break
     return clusterings
 
