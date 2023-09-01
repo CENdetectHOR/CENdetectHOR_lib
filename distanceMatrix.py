@@ -206,6 +206,21 @@ class ClusteredSeq:
             f'Seq: {get_seq_as_txt(self.seq_as_clusters)}, ' +
             f'Loops: {[str(loop) for loop in self.loops]}'
         )
+    
+    def to_dict(self):
+        return {
+            "num_clusters": len(self.clusters),
+            "seq": get_seq_as_txt(self.seq_as_clusters),
+            "loops": [{
+                "loop_seq": get_seq_as_txt(l.loop.loop_seq),
+                "spans": [{
+                    "span_start": span_inseq.span_start,
+                    "span_length": span_inseq.span_length,
+                    "num_of_laps": span_inseq.num_of_laps,
+                    "in_loop_start": span_inseq.in_loop_start
+                } for span_inseq in l.spans_in_seq]
+            } for l in self.loops]
+        }        
 
 def matrix_sparsity(matrix):
     return 1.0 - np.count_nonzero(matrix) / matrix.size
