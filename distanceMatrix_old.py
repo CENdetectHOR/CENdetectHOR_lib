@@ -239,6 +239,7 @@ def clusterings_with_hors(
     for max_distance in range(min_distance, distance_matrix.max()):
         print(f'Checking clusters for max distance {max_distance}...')
         adjancecy_matrix = distance_matrix <= max_distance
+        print(f'to suppress (before closure) is {np.count_nonzero(np.sum(np.triu(adjancecy_matrix,1), axis=0))}')
         if sparse_matrix and matrix_sparsity(adjancecy_matrix) < closure_sparsity_threshold:
             sparse_matrix = False
         clusters,curr_closure_matrix = connected_components(
@@ -246,6 +247,7 @@ def clusterings_with_hors(
             base_matrix_closure=curr_closure_matrix,
             closure_check_interval=closure_check_interval,
             sparse_matrix=sparse_matrix)
+        print(f'to suppress is {np.count_nonzero(np.sum(np.triu(curr_closure_matrix,1), axis=0))}')
         if order_clusters:
             clusters.sort(key=len, reverse=True)
         print(f'Found {len(clusters)} clusters')
