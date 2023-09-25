@@ -56,12 +56,12 @@ class LoopInSeq:
             )
         )
 
-def find_loops(seq, min_loop_size = 2, max_loop_size = 20, min_loops = 4):
+def find_loops(seq, min_loop_size = 2, max_loop_size = 30, min_loops = 3):
     loops_found = {} #defaultdict(list)
     curr_loops = {loop_size:0 for loop_size in range(1, max_loop_size + 1)}
 
     def last_of_size(curr_position, loop_size):
-        if curr_loops[loop_size] >= min_loops * loop_size:
+        if curr_loops[loop_size] >= (min_loops - 1) * loop_size:
             loop_start = curr_position - curr_loops[loop_size] - loop_size
             loop_length = curr_loops[loop_size] + loop_size
             loop_laps = loop_length // loop_size

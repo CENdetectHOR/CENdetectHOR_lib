@@ -44,7 +44,7 @@ def matrix_sparsity(matrix):
 def clusterings_with_hors(
         distance_matrix, min_distance=0,
         min_num_clusters=2, max_num_clusters=None, order_clusters=True,
-        require_loop=True, min_len_loop=2,
+        require_loop=True, min_len_loop=2, max_len_loop=30, min_loop_reps=3,
         closure_sparsity_threshold = 0.5):
     print(f'Start of clusterings_with_hors')
     if max_num_clusters is None:
@@ -67,7 +67,7 @@ def clusterings_with_hors(
             else:
                 clustered_seq = ClusteredSeq(curr_clusters_expansion)
             print(f'Looking for loops in {str(clustered_seq)}...')
-            loops = find_loops(clustered_seq.seq_as_clusters, min_loop_size=min_len_loop)
+            loops = find_loops(clustered_seq.seq_as_clusters, min_loop_size=min_len_loop, max_loop_size=max_len_loop, min_loops=min_loop_reps)
             print(f'Loops found: {len(loops)}')
             clustered_seq.add_loops(loops)
             if len(loops) > 0 or not require_loop:
