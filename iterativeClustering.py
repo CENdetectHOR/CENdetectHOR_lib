@@ -40,11 +40,19 @@ class ClusteredSeq:
 def matrix_sparsity(matrix):
     return 1.0 - np.count_nonzero(matrix) / matrix.size
 
+def coverage_includes(coverage_a, coverage_b):
+    return all([
+        any([
+            span_a.span_start <= span_b.span_start and span_a.span_start + span_a.span_length >= span_b.span_start + span_b.span_length
+            for span_a in coverage_a
+        ]) for span_b in coverage_b
+    ])
 
 def clusterings_with_hors(
         distance_matrix, min_distance=0,
         min_num_clusters=2, max_num_clusters=None, order_clusters=True,
         require_loop=True, min_len_loop=2, max_len_loop=30, min_loop_reps=3,
+        require_increasing_loop_coverage=True,
         closure_sparsity_threshold = 0.5):
     print(f'Start of clusterings_with_hors')
     if max_num_clusters is None:
@@ -53,6 +61,7 @@ def clusterings_with_hors(
     clusterings = []
     curr_distance_matrix = distance_matrix
     curr_clusters_expansion = None
+    last_loops_coverage = []
 
     while curr_clusters_expansion is None or len(curr_clusters_expansion) >= min_num_clusters:
         curr_distance_matrix, curr_clusters_expansion = merge_clusters(
@@ -70,7 +79,13 @@ def clusterings_with_hors(
             loops = find_loops(clustered_seq.seq_as_clusters, min_loop_size=min_len_loop, max_loop_size=max_len_loop, min_loops=min_loop_reps)
             print(f'Loops found: {len(loops)}')
             clustered_seq.add_loops(loops)
+
+
             if len(loops) > 0 or not require_loop:
-                clusterings.append(clustered_seq)
+                loops_coverage = [span_in_seq for loop in loops for span_in_seq in loop.spans_in_seq]
+                if not require_increasing_loop_coverage or not coverage_includes(last_loops_coverage, loops_coverage):
+                    clusterings.append(clustered_seq)
+                    last_loops_coverage = loops_coverage
+
     return clusterings
 
