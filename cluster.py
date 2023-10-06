@@ -20,9 +20,12 @@ def matrix_min(matrix, mask):
     return np.array([np.min(matrix, where=cr, initial=np.max(matrix), axis=1) for cr in mask])
     # return (np.min(np.tile(matrix[:,:,None],len(mask)), where=mask.T, initial=np.max(matrix), axis=1)).T
 
+def min_distance(distance_matrix):
+    return min(distance_matrix[np.triu_indices(distance_matrix.shape[0],1)])
+
 def merge_clusters(distance_matrix, clusters_expansion = None, max_distance = None, sparsity_threshold = 0.5):
     if max_distance is None:
-        max_distance = min(distance_matrix[np.triu_indices(distance_matrix.shape[0],1)])
+        max_distance = min_distance(distance_matrix)
     print(f'merge_clusters with distance as {distance_matrix.shape}, clusters as {() if clusters_expansion is None else clusters_expansion.shape}, and max distance {max_distance}')
     adjancency_triu = np.triu(distance_matrix <= max_distance,1)
     print(f'adjacency triu sparsity is {matrix_sparsity(adjancency_triu)}')
@@ -35,7 +38,7 @@ def merge_clusters(distance_matrix, clusters_expansion = None, max_distance = No
     new_distance_matrix = matrix_min(new_rows_distance_matrix, new_clusters_expansion > 0)
 
     updated_clusters_expansion = new_clusters_expansion if clusters_expansion is None else new_clusters_expansion @ clusters_expansion
-    return new_distance_matrix, updated_clusters_expansion
+    return new_distance_matrix, updated_clusters_expansion, new_clusters_expansion, max_distance
 
 def distance_values(matrix):
     return matrix[np.triu_indices(matrix.shape[0], k = 1)]
