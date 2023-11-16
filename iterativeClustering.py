@@ -43,6 +43,9 @@ class ClusteredSeq:
 def matrix_sparsity(matrix):
     return 1.0 - np.count_nonzero(matrix) / matrix.size
 
+# Compares two collections of spans in a sequence, called "coverages"
+# Each coverage implicitly represents the set of items of the sequence included in some span
+# Returns true iff the set of items associated with coverage_a contains the one associated with coverage_b
 def coverage_includes(coverage_a, coverage_b):
     return all([
         any([
@@ -104,7 +107,7 @@ def clusterings_with_hors(
         if build_tree:
             curr_clades = merge_clades(
                 clades=curr_clades, new_clusters_matrix=merged_clusters_expansion,
-                branch_length=merged_clusters_distance-curr_clusters_max_internal_distance)
+                branch_length=(merged_clusters_distance-curr_clusters_max_internal_distance)/2)
         if len(curr_clusters_expansion) <= max_num_clusters:
             if order_clusters:
                 clusters_size = np.sum(curr_clusters_expansion, axis=1)
@@ -132,30 +135,50 @@ def clusterings_with_hors(
         curr_clusters_max_internal_distance = merged_clusters_distance
 
     if require_relevant_loop_coverage:
+        # hor_trees = [{'value': loop, 'children': []} for loop in clusterings[-1].loops]
         new_clusterings_reversed = [clusterings[-1]]
         curr_preserved_loops = clusterings[-1].loops
+        curr_hor_tree_nodes = clusterings[-1].hors
         for clustering_level in reversed(range(len(clusterings) - 1)):
             new_preserved_loops = []
+            new_hor_tree_nodes = []
             new_loops = []
             clustered_seq = clusterings[clustering_level]
-            for existing_loop in curr_preserved_loops:
+            for existing_loop_index in range(len(curr_preserved_loops)):
+                existing_loop = curr_preserved_loops[existing_loop_index]
+                existing_hor = curr_hor_tree_nodes[existing_loop_index]
                 corresponding_candidate_loops = []
+                corresponding_candidate_hors = []
                 specificity_increased = False
-                for loop in clustered_seq.loops:
+                for loop_index in range(len(clustered_seq.loops)):
+                    loop = clustered_seq.loops[loop_index]
+                    hor = clustered_seq.hors[loop_index]
                     if coverage_includes(existing_loop.spans_in_seq, loop.spans_in_seq):
                         corresponding_candidate_loops.append(loop)
+                        corresponding_candidate_hors.append(hor)
                         if (len(loop.loop.loop_seq) > len(existing_loop.loop.loop_seq) or
                             len(set(loop.loop.loop_seq)) > len(set(existing_loop.loop.loop_seq))):
                             specificity_increased = True
                 if len(corresponding_candidate_loops) > 1 or specificity_increased:
                     new_preserved_loops.extend(corresponding_candidate_loops)
+                    new_hor_tree_nodes.extend(corresponding_candidate_hors)
                     new_loops.extend(corresponding_candidate_loops)
+                    existing_hor.sub_hors = corresponding_candidate_hors
+                    for sub_hor in corresponding_candidate_hors:
+                        sub_hor.super_hor = existing_hor
+                        sub_hor.sub_hors = []
                 else:
                     new_preserved_loops.append(existing_loop)
+                    new_hor_tree_nodes.append(existing_hor)
             clustered_seq.loops = new_loops
             if len(new_loops) > 0 or not require_loop:
                 new_clusterings_reversed.append(clustered_seq)
             curr_preserved_loops = new_preserved_loops
+            curr_hor_tree_nodes = new_hor_tree_nodes
+
+        hor_tree_roots = new_clusterings_reversed[0].hors
+
+
         clusterings = list(reversed(new_clusterings_reversed))
                 
 
@@ -163,8 +186,20 @@ def clusterings_with_hors(
     if build_tree:
         total_hors = [hor for clusters_seq in clusterings for hor in clusters_seq.hors]
         if len(curr_clades) == 1:
-            return clusterings, new_tree(curr_clades[0]), total_hors
-        return clusterings, curr_clades, total_hors
+            return clusterings, new_tree(curr_clades[0]), total_hors, hor_tree_roots[0]
+        return clusterings, curr_clades, total_hors, hor_tree_roots
     else:
         return clusterings
 
+def bfs_merge_rec(hor_tree_level):
+    if not any([hor_in_level.sub_hors for hor_in_level in hor_tree_level]):
+        return [hor_tree_level]
+    sub_hors = [sub_hor for hor_in_level in hor_tree_level for sub_hor in (hor_in_level.sub_hors or [hor_in_level])]
+    return [sub_hors] + bfs_merge_rec(sub_hors)
+
+def bfs_merge(hor_tree_root):
+    return bfs_merge_rec([hor_tree_root])
+
+def bfs(hor_in_seq, tree):
+    sub_tree = tree.common_ancestor(hor_in_seq.hor.clade_seq)
+    hor_in_seq.sub_hors
