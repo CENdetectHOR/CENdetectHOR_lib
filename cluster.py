@@ -1,4 +1,4 @@
-from matrix_closure import triu_closure, matrix_sparsity
+from matrix_closure import test_graph_connected_components, triu_closure, matrix_sparsity, graph_connected_components
 import numpy as np
 import editdistance
 
@@ -23,16 +23,14 @@ def matrix_min(matrix, mask):
 def min_distance(distance_matrix):
     return min(distance_matrix[np.triu_indices(distance_matrix.shape[0],1)])
 
-def merge_clusters(distance_matrix, clusters_expansion = None, max_distance = None, sparsity_threshold = 0.5):
+def merge_clusters(distance_matrix, clusters_expansion = None, max_distance = None, sparsity_threshold = 0.97):
     if max_distance is None:
         max_distance = min_distance(distance_matrix)
     print(f'merge_clusters with distance as {distance_matrix.shape}, clusters as {() if clusters_expansion is None else clusters_expansion.shape}, and max distance {max_distance}')
-    adjancency_triu = np.triu(distance_matrix <= max_distance,1)
-    print(f'adjacency triu sparsity is {matrix_sparsity(adjancency_triu)}')
-    adjancency_triu_closure = triu_closure(adjancency_triu, sparse_matrix=matrix_sparsity(adjancency_triu) > sparsity_threshold)
-    indexes_to_suppress = np.sum(adjancency_triu_closure, axis=0)
-    np.fill_diagonal(adjancency_triu_closure, 1)
-    new_clusters_expansion = np.delete(adjancency_triu_closure, indexes_to_suppress > 0, axis=0)
+    adjacency_matrix = distance_matrix <= max_distance
+    print(f'adjacency matrix sparsity is {matrix_sparsity(adjacency_matrix)}')
+
+    new_clusters_expansion = graph_connected_components(adjacency_matrix, sparse_matrix=matrix_sparsity(adjacency_matrix) > sparsity_threshold)
 
     new_rows_distance_matrix = matrix_min(distance_matrix, new_clusters_expansion > 0)
     new_distance_matrix = matrix_min(new_rows_distance_matrix, new_clusters_expansion > 0)
