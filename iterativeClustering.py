@@ -221,7 +221,7 @@ def clusterings_with_hors(
     if build_tree:
         total_hors = [hor for clusters_seq in clusterings for hor in clusters_seq.hors]
         if len(curr_clades) == 1:
-            return clusterings, new_tree(curr_clades[0]), total_hors, hor_tree_roots # hor_tree_roots[0]
+            return clusterings, new_tree(curr_clades[0]), total_hors, hor_tree_roots[0]
         return clusterings, curr_clades, total_hors, hor_tree_roots
     else:
         return clusterings
