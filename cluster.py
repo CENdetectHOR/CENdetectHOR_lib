@@ -2,14 +2,17 @@ from matrix_closure import test_graph_connected_components, triu_closure, matrix
 import numpy as np
 import editdistance
 
-def build_distance_matrix(seq_blocks):
+def build_string_distance_matrix(strings):
     seq_triu = np.array([
-            (0 if j <= i else editdistance.eval(seq_i, seq_blocks[j]))
-            for i, seq_i in enumerate(seq_blocks)
-            for j in range(len(seq_blocks))
+            (0 if j <= i else editdistance.eval(seq_i, strings[j]))
+            for i, seq_i in enumerate(strings)
+            for j in range(len(strings))
     ])
-    seq_triu.shape = (len(seq_blocks), len(seq_blocks))
+    seq_triu.shape = (len(strings), len(strings))
     return seq_triu + seq_triu.T
+
+def build_seqs_distance_matrix(seqs):
+    return build_string_distance_matrix([str(seq.seq) for seq in seqs])
 
 def matrix_prod(a, b):
     # return np.einsum('ij,jk->ikj', a, b)

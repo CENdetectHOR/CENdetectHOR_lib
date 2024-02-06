@@ -14,6 +14,8 @@ class HOR:
 class HORInSeq:
     hor: HOR
     spans_in_seq: List[LoopSpanInSeq]
+    super_hor: any
+    sub_hors: List[any]
 
     def __init__(self, hor, spans_in_seq = []):
         self.hor = hor
