@@ -5,7 +5,7 @@ import matplotlib.colors as mcolors
 import matplotlib.gridspec as gridspec
 from Bio import Phylo
 
-from treeFromClusters import new_tree
+from treeFromClusters import new_phylogenie
 
 def show_hor(hor_in_seq, tree=None, seq_length=None,
              label='unnamed',
@@ -200,5 +200,5 @@ def show_hor_tree(hor_tree_root, tree, path = [], level = 0, seq_length = None):
     print(f'Subtree: {path}')
     show_hors(hor_tree_root.sub_hors, tree, seq_length = seq_length)
     for branch_index, sub_hor in enumerate(hor_tree_root.sub_hors):
-        show_hor_tree(sub_hor, new_tree(tree.common_ancestor(sub_hor.hor.clade_seq)), path = path + [branch_index], seq_length = seq_length)
+        show_hor_tree(sub_hor, new_phylogenie(tree.common_ancestor(sub_hor.hor.clade_seq)), path = path + [branch_index], seq_length = seq_length)
 

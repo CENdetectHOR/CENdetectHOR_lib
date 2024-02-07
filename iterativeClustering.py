@@ -1,9 +1,10 @@
 from cluster import build_string_distance_matrix, get_seq_as_txt, merge_clusters, min_distance
+from featureUtils import feature_to_seq, indeces_to_ordering_matrix, location_to_feature, location_to_seq, order_by_indices, order_matrix_by_indeces, sorted_locations_indeces
 from hor import loops_to_HORs
 from loops import find_loops
 import numpy as np
 
-from treeFromClusters import merge_clades, new_leaves, new_tree
+from treeFromClusters import merge_clades, new_leaves, new_phylogenie, features_to_leaves
 
 class ClusteredSeq:
     def __init__(self, clusters_expansion, loops = [], clades = None, gap_indeces = []):
@@ -71,14 +72,14 @@ def coverage_diff(coverage_a, loops_b):
     ]
 
 def clusterings_with_hors(
-        seqs,
+        seqs=None,
         seqs_as_features=None,
         seq_locations=None,
-        seq_strands=None,
+        references=None,
+        sorted=False,
         gap_indeces=[],
         max_allowed_bases_gap_in_hor = 10,
         distance_matrix=None,
-        seq_labels=None,
         seq_labels_prefix='',
         starting_distance=0,
         min_num_clusters=2, max_num_clusters=None, order_clusters=False,
@@ -90,36 +91,50 @@ def clusterings_with_hors(
         build_tree = True):
     print(f'Start of clusterings_with_hors')
 
+    if seqs_as_features is not None:
+        seq_locations = [feature.location for feature in seqs_as_features]
+
+    if seq_locations is not None:
+
+        if not sorted:
+            reordered_indeces = sorted_locations_indeces(seq_locations)
+            seq_locations = order_by_indices(seq_locations, reordered_indeces)
+            seqs_as_features = order_by_indices(seqs_as_features, reordered_indeces)
+            seqs = order_by_indices(seqs, reordered_indeces)
+            distance_matrix = order_matrix_by_indeces(distance_matrix, reordered_indeces)
+
+        if seqs_as_features is None:
+            seqs_as_features = [location_to_feature(location) for location in seq_locations]
+
+        if seqs is None:
+            seqs = [feature_to_seq(feature, references) for feature in seqs_as_features]
+
+        gap_indeces = [
+            monomer_index + 1
+            for monomer_index in range(len(seq_locations) - 1)
+            if seq_locations[monomer_index + 1].ref != seq_locations[monomer_index].ref
+                or seq_locations[monomer_index + 1].strand != seq_locations[monomer_index].strand
+                or seq_locations[monomer_index + 1].start - seq_locations[monomer_index].end > max_allowed_bases_gap_in_hor
+        ]
+
     if distance_matrix is None:
         plain_seqs = [str(seq.seq) for seq in seqs]
         print(f'Computing distances...')
         distance_matrix = build_string_distance_matrix(plain_seqs)
         print(f'Distance matrix computed!')
 
-    if seqs_as_features is not None:
-        seq_locations = [feature.location for feature in seqs_as_features]
-        seq_labels = [feature.id for feature in seqs_as_features]
-
-    if seq_locations is not None:
-        gap_indeces = [
-            monomer_index + 1
-            for monomer_index in range(len(seq_locations) - 1)
-            if seq_locations[monomer_index + 1].ref != seq_locations[monomer_index].ref
-                or seq_locations[monomer_index + 1].start - seq_locations[monomer_index].end > max_allowed_bases_gap_in_hor
-        ]
-        seq_strands = [location.strand for location in seq_locations]
-
     if max_num_clusters is None:
         max_num_clusters = distance_matrix.shape[0] / 4
-    # last_num_clusters = max_num_clusters + 1
 
     if require_relevant_loop_coverage:
         require_increasing_loop_coverage=True
 
     if build_tree:
-        if seq_labels is None:
+        if seqs_as_features is not None:
+            curr_clades = features_to_leaves(seqs_as_features)
+        else:
             seq_labels = [seq_labels_prefix + str(i) for i in range(distance_matrix.shape[0])]
-        curr_clades = new_leaves(seq_labels)
+            curr_clades = new_leaves(seq_labels)
     else:
         curr_clades = None
 
@@ -146,12 +161,11 @@ def clusterings_with_hors(
             else:
                 clustered_seq = ClusteredSeq(curr_clusters_expansion, clades=curr_clades, gap_indeces=gap_indeces)
             print(f'Looking for loops in {str(clustered_seq)}...')
-            loops = find_loops(clustered_seq.seqs_as_clusters, min_loop_size=min_len_loop, max_loop_size=max_len_loop, min_loops=min_loop_reps)
-            # loops = [
-            #     loop
-            #     for seq_as_clusters in clustered_seq.seqs_as_clusters
-            #     for loop in find_loops(seq_as_clusters, min_loop_size=min_len_loop, max_loop_size=max_len_loop, min_loops=min_loop_reps)
-            # ]
+            loops = find_loops(
+                clustered_seq.seqs_as_clusters,
+                min_loop_size=min_len_loop, max_loop_size=max_len_loop,
+                min_loops=min_loop_reps
+            )
             print(f'Loops found: {len(loops)}')
             if incremental_loops:
                 clustered_seq.add_loops(coverage_diff(last_loops_coverage, loops))
@@ -163,14 +177,11 @@ def clusterings_with_hors(
                 loops_coverage = [span_in_seq for loop in loops for span_in_seq in loop.spans_in_seq]
                 if not require_increasing_loop_coverage or not coverage_includes(last_loops_coverage, loops_coverage):
                     clusterings.append(clustered_seq)
-                    # if build_tree:
-                    #     clades_by_clustering_level.append(curr_clades)
                     last_loops_coverage = loops_coverage
 
         curr_clusters_max_internal_distance = merged_clusters_distance
 
     if require_relevant_loop_coverage:
-        # hor_trees = [{'value': loop, 'children': []} for loop in clusterings[-1].loops]
         new_clusterings_reversed = [clusterings[-1]]
         curr_preserved_loops = clusterings[-1].loops
         curr_hor_tree_nodes = clusterings[-1].hors
@@ -221,7 +232,7 @@ def clusterings_with_hors(
     if build_tree:
         total_hors = [hor for clusters_seq in clusterings for hor in clusters_seq.hors]
         if len(curr_clades) == 1:
-            return clusterings, new_tree(curr_clades[0]), total_hors, hor_tree_roots[0]
+            return clusterings, new_phylogenie(curr_clades[0]), total_hors, hor_tree_roots[0]
         return clusterings, curr_clades, total_hors, hor_tree_roots
     else:
         return clusterings
