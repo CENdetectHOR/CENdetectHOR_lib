@@ -27,8 +27,8 @@ def feature_to_leave(feature):
 def features_to_leaves(features):
     return [feature_to_leave(feature) for feature in features]
 
-def new_phylogenie(clade, attributes={}):
-    return Phylogeny(root=clade)
+def new_phylogeny(clade, name='monomers'):
+    return Phylogeny(root=clade, name=name)
 
 def new_phyloXML(phylogenies, attributes={}):
     return Phyloxml(attributes, phylogenies=phylogenies)

@@ -1,6 +1,7 @@
 import csv
 from Bio.SeqFeature import SeqFeature, FeatureLocation 
 import numpy as np
+from Bio.Phylo.PhyloXML import Sequence
 
 def BED_file_to_features(BED_filename):
     with open(BED_filename) as tsv:
@@ -37,23 +38,19 @@ def location_to_feature(location):
 def location_to_seq(location, references):
     return feature_to_seq(location_to_feature(location), references)
 
-def extract_features_from_labels(seqs):
-    seqs_as_features = []
-    for seq in seqs:
-        label_parts = seq.id.split(',')
-        coordinates = label_parts[0]
-        coordinates_parts = coordinates.split(':')
-        seq_label = coordinates_parts[0]
-        start_end = coordinates_parts[1].split('-')
-        start = int(start_end[0])
-        end = int(start_end[1])
-        props = {}
-        for label_index in range(len(label_parts) - 1):
-            key_value = label_parts[label_index].split('=')
-            props[key_value[0]] = key_value[1] if len(key_value) > 1 else True
-        strand = (1 if props['strand'] == "'+'" else (-1 if props['strand'] == "'-'" else None)) if 'strand' in props else None
-        seqs_as_features.append(SeqFeature(FeatureLocation(start, end, strand=strand, ref=seq_label), id=seq.id, type='repeat'))
-    return seqs_as_features
+def label_to_location(seq_id):
+    coordinates_parts = seq_id.split(':')
+    seq_label = coordinates_parts[0]
+    start_end = coordinates_parts[1].split('-')
+    start = int(start_end[0])
+    end = int(start_end[1])
+    return FeatureLocation(start, end, strand=1, ref=seq_label)
+
+def label_to_feature(seq_id):
+    return SeqFeature(location=label_to_location(seq_id), id=seq_id)
+
+def label_to_phyloxml_sequence(seq_id):
+    return Sequence(name=seq_id, location=label_to_location(seq_id))
 
 def extract_indices(indexed_list):
     return [indexed_item[0] for indexed_item in indexed_list]
@@ -95,11 +92,15 @@ def indeces_to_ordering_matrix(reordered_indeces):
 def order_matrix_by_indeces(matrix_to_order, reordered_indeces, reorder_rows=True, reorder_cols=True):
     if matrix_to_order is None:
         return None
-    ordering_matrix = indeces_to_ordering_matrix(reordered_indeces)
-    matrix = matrix_to_order
-    if reorder_cols:
-        matrix = matrix @ ordering_matrix
-    if reorder_rows:
-        matrix = (matrix.T @ ordering_matrix).T
-    return matrix
+    return np.array([
+        [
+            matrix_to_order[
+                reordered_indeces[row_index] if reorder_rows else row_index
+            ][
+                reordered_indeces[col_index] if reorder_cols else col_index
+            ]
+                for col_index in range(matrix_to_order.shape[1])
+        ] for row_index in range(matrix_to_order.shape[0])]
+    )
+
 

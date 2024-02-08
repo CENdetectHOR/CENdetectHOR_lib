@@ -5,7 +5,7 @@ import matplotlib.colors as mcolors
 import matplotlib.gridspec as gridspec
 from Bio import Phylo
 
-from treeFromClusters import new_phylogenie
+from treeFromClusters import new_phylogeny
 
 def show_hor(hor_in_seq, tree=None, seq_length=None,
              label='unnamed',
@@ -88,7 +88,8 @@ def show_hor(hor_in_seq, tree=None, seq_length=None,
     if tree is not None:
         tree.root.color = None
 
-def show_hors(hors_in_seq, tree=None, seq_length=None,
+def show_hors(hors_in_seq, reference_seq,
+              tree=None,
              label='unnamed',
              color_palette=[mcolors.TABLEAU_COLORS[color_id] for color_id in mcolors.TABLEAU_COLORS],
              seq_fg_color='black',
@@ -100,12 +101,8 @@ def show_hors(hors_in_seq, tree=None, seq_length=None,
              tree_height=5,
              hor_height=1,
              h_space = 0.1,
-             h_space_in_hor = 0.02,
-             monomer_size=107):
+             h_space_in_hor = 0.02):
     
-    if seq_length is None and tree is not None:
-        seq_length = tree.count_terminals()
-
     clade_set = set([clade for hor_in_seq in hors_in_seq for clade in hor_in_seq.hor.clade_seq])
     for clade_index,clade in enumerate(clade_set):
         clade.color = color_palette[clade_index % 10] # this is bad, but at least avoid error
@@ -158,21 +155,24 @@ def show_hors(hors_in_seq, tree=None, seq_length=None,
         for clade_pos,clade in enumerate(clade_seq):
             ax_hor.add_patch(patches.Rectangle((clade_pos,0),1,1,facecolor=clade.color.to_hex()))
 
-        bp_seq_length = seq_length * monomer_size
+        bp_seq_length = len(reference_seq)
 
         ax_seq.set_xlim([0,bp_seq_length])
         ax_seq.get_yaxis().set_visible(False)
 
-        spans = hor_in_seq.spans_in_seq
+        # spans = hor_in_seq.spans_in_seq
+        locations = hor_in_seq.locations
 
         # bp_start = spans[0].span_start * monomer_size
         # bp_end = (spans[-1].span_start + spans[-1].span_length) * monomer_size
 
         ax_seq.add_patch(patches.Rectangle((0,0),bp_seq_length,1,facecolor=seq_bg_color))
-        for span in spans:
-            span_bp_start = span.span_start * monomer_size
-            span_bp_length = span.span_length * monomer_size
-            ax_seq.add_patch(patches.Rectangle((span_bp_start,0),span_bp_length,1,facecolor=seq_fg_color))
+        for location in locations:
+            ax_seq.add_patch(patches.Rectangle(
+                (location.start,0),
+                location.end - location.start,
+                1,
+                facecolor=seq_fg_color))
 
     ax_tree.get_yaxis().set_visible(False)
     ax_tree.get_xaxis().set_visible(False)
@@ -192,13 +192,11 @@ def show_hors(hors_in_seq, tree=None, seq_length=None,
     if tree is not None:
         tree.root.color = None
 
-def show_hor_tree(hor_tree_root, tree, path = [], level = 0, seq_length = None):
-    if seq_length is None:
-        seq_length = tree.count_terminals()
+def show_hor_tree(hor_tree_root, reference_seq, tree, path = [], level = 0):
     if not hor_tree_root.sub_hors:
         return
     print(f'Subtree: {path}')
-    show_hors(hor_tree_root.sub_hors, tree, seq_length = seq_length)
+    show_hors(hor_tree_root.sub_hors, reference_seq, tree=tree)
     for branch_index, sub_hor in enumerate(hor_tree_root.sub_hors):
-        show_hor_tree(sub_hor, new_phylogenie(tree.common_ancestor(sub_hor.hor.clade_seq)), path = path + [branch_index], seq_length = seq_length)
+        show_hor_tree(sub_hor, reference_seq, tree=new_phylogeny(tree.common_ancestor(sub_hor.hor.clade_seq)), path = path + [branch_index + 1])
 

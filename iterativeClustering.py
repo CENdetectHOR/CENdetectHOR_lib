@@ -1,13 +1,14 @@
 from cluster import build_string_distance_matrix, get_seq_as_txt, merge_clusters, min_distance
-from featureUtils import feature_to_seq, indeces_to_ordering_matrix, location_to_feature, location_to_seq, order_by_indices, order_matrix_by_indeces, sorted_locations_indeces
-from hor import loops_to_HORs
+from featureUtils import feature_to_seq, label_to_phyloxml_sequence, location_to_feature, order_by_indices, order_matrix_by_indeces, sorted_locations_indeces
+from hor import hor_tree_to_phylogeny, loops_to_HORs, name_hor_tree
 from loops import find_loops
 import numpy as np
+from Bio.Phylo.PhyloXML import Phyloxml, Other
 
-from treeFromClusters import merge_clades, new_leaves, new_phylogenie, features_to_leaves
+from treeFromClusters import merge_clades, new_leaves, new_phylogeny, features_to_leaves
 
 class ClusteredSeq:
-    def __init__(self, clusters_expansion, loops = [], clades = None, gap_indeces = []):
+    def __init__(self, clusters_expansion, loops = [], clades = None, gap_indeces = [], seq_locations=None):
         self.clades = clades
         self.clusters_expansion = clusters_expansion
         self.loops = []
@@ -17,10 +18,10 @@ class ClusteredSeq:
         self.seqs_as_clusters = [whole_seq_as_clusters[seq_split_indeces[i]:seq_split_indeces[i+1]] for i in range(len(gap_indeces) + 1)]
         # self.seq_as_clusters = list(np.arange(len(clusters_expansion)) @ clusters_expansion)
 
-    def add_loops(self, loops):
+    def add_loops(self, loops, seq_locations=None):
         self.loops.extend(loops)
         if self.clades is not None:
-            self.hors = loops_to_HORs(self.loops, self.clades)
+            self.hors = loops_to_HORs(self.loops, self.clades, seq_locations=seq_locations)
 
     def __str__(self):
         return (
@@ -77,6 +78,7 @@ def clusterings_with_hors(
         seq_locations=None,
         references=None,
         sorted=False,
+        sorted_by_positive_strand_location=False,
         gap_indeces=[],
         max_allowed_bases_gap_in_hor = 10,
         distance_matrix=None,
@@ -97,11 +99,29 @@ def clusterings_with_hors(
     if seq_locations is not None:
 
         if not sorted:
-            reordered_indeces = sorted_locations_indeces(seq_locations)
+            print(f'Reorder')
+            if sorted_by_positive_strand_location:
+                print(f'Reorder negative strand')
+                indexed_locations = list(enumerate(seq_locations))
+                positive_location_indexes = [
+                    indexed_location[0] for indexed_location in indexed_locations
+                    if indexed_location[1].strand is None or indexed_location[1].strand == 1
+                ]
+                negative_location_indexes = list(reversed([
+                    indexed_location[0] for indexed_location in indexed_locations
+                    if indexed_location[1].strand is not None and indexed_location[1].strand == -1
+                ]))
+                reordered_indeces = positive_location_indexes + negative_location_indexes
+            else:
+                print(f'Reorder all')
+                reordered_indeces = sorted_locations_indeces(seq_locations)
+            print(f'Indexes built, now reordering lists...')
             seq_locations = order_by_indices(seq_locations, reordered_indeces)
             seqs_as_features = order_by_indices(seqs_as_features, reordered_indeces)
             seqs = order_by_indices(seqs, reordered_indeces)
+            print(f'Lists reordered, now reordering matrix...')
             distance_matrix = order_matrix_by_indeces(distance_matrix, reordered_indeces)
+            print(f'Matrix reordered')
 
         if seqs_as_features is None:
             seqs_as_features = [location_to_feature(location) for location in seq_locations]
@@ -168,9 +188,9 @@ def clusterings_with_hors(
             )
             print(f'Loops found: {len(loops)}')
             if incremental_loops:
-                clustered_seq.add_loops(coverage_diff(last_loops_coverage, loops))
+                clustered_seq.add_loops(coverage_diff(last_loops_coverage, loops), seq_locations=seq_locations)
             else:
-                clustered_seq.add_loops(loops)
+                clustered_seq.add_loops(loops, seq_locations=seq_locations)
 
 
             if len(loops) > 0 or not require_loop:
@@ -224,16 +244,27 @@ def clusterings_with_hors(
 
         hor_tree_roots = new_clusterings_reversed[0].hors
 
-
         clusterings = list(reversed(new_clusterings_reversed))
-                
-
 
     if build_tree:
-        total_hors = [hor for clusters_seq in clusterings for hor in clusters_seq.hors]
-        if len(curr_clades) == 1:
-            return clusterings, new_phylogenie(curr_clades[0]), total_hors, hor_tree_roots[0]
-        return clusterings, curr_clades, total_hors, hor_tree_roots
+        seq_tree_root = curr_clades[0]
+        hor_tree_root = hor_tree_roots[0]
+        name_hor_tree(hor_tree_root)
+        reference_seqs_element = (
+            Other(
+                tag='reference-sequences',
+                children=[label_to_phyloxml_sequence(ref_id) for ref_id in references.keys()]
+            )
+            if references is not None else None
+        )
+        return (
+            Phyloxml(
+                phylogenies=[new_phylogeny(seq_tree_root), hor_tree_to_phylogeny(hor_tree_root)],
+                attributes={'xsd':'http://www.w3.org/2001/XMLSchema'},
+                other=reference_seqs_element
+            ),
+            hor_tree_root, clusterings
+        )
     else:
         return clusterings
 
