@@ -1,9 +1,10 @@
+from collections.abc import Iterable
 from cluster import build_string_distance_matrix, get_seq_as_txt, merge_clusters, min_distance
 from featureUtils import feature_to_seq, label_to_phyloxml_sequence, location_to_feature, order_by_indices, order_matrix_by_indeces, sorted_locations_indeces
 from hor import HORInSeq, hor_tree_to_phylogeny, loops_to_HORs, name_hor_tree
-from loops import find_loops
+from loops import LoopInSeq, LoopSpanInSeq, find_loops
 import numpy as np
-from Bio.Phylo.PhyloXML import Phyloxml, Other
+from Bio.Phylo.PhyloXML import Phyloxml, Clade, Other
 from Bio.SeqFeature import SeqFeature, SimpleLocation
 from Bio.SeqRecord import SeqRecord
 
@@ -11,30 +12,71 @@ from treeFromClusters import merge_clades, new_leaves, new_phylogeny, features_t
 
 
 class ClusteredSeq:
-    def __init__(self, clusters_expansion, loops=[], clades=None, gap_indeces=[], seq_locations=None):
+    """
+    A list of contiguous monomers, possibly with gaps in it, classified
+    in a set of clusters (families).
+    Information about found loops may be represented.
+    Loops are repeated patterns in the list of monomers labelled with the
+    clusters they belong to.
+
+    Attributes
+    ----------
+    clades: list[Clade]
+        Clades in the phylogenetic tree corresponding to each of the clusters;
+        must be of length m, where m is the number of clusters.
+    clusters_expansion : np.ndarray
+        Boolean m x n matrix representing the cluster assignments,
+        where m is the number of clusters and n is the number of monomers.
+    loops : list[LoopInSeq]
+        List of found loops (expressed in terms of local clusters).
+    hors: list[]
+        List of found HORs (loops expressed in terms of clades).
+    seq_split_indeces: list[int]
+        List of the indeces at which there are gaps in the list of monomers.
+    seqs_as_clusters: list[list[int]]
+        Each list of contiguous monomers (obtained from the original
+        list split by the gaps), represented as the list of corresponding
+        cluster numbers.
+
+    """
+
+    def __init__(
+        self,
+        clusters_expansion: np.ndarray,
+        loops: list[LoopInSeq] = [],
+        clades: list[Clade] = None,
+        gap_indeces: list[int] = [],
+        seq_locations: Iterable[SimpleLocation] = None
+    ):
         self.clades = clades
         self.clusters_expansion = clusters_expansion
         self.loops = []
         self.add_loops(loops)
         whole_seq_as_clusters = list(
-            np.arange(len(clusters_expansion)) @ clusters_expansion)
+            np.arange(len(clusters_expansion)) @ clusters_expansion
+        )
         seq_split_indeces = [0] + gap_indeces + [len(whole_seq_as_clusters)]
-        self.seqs_as_clusters = [whole_seq_as_clusters[seq_split_indeces[i]:seq_split_indeces[i+1]] for i in range(len(gap_indeces) + 1)]
+        self.seqs_as_clusters = [
+            whole_seq_as_clusters[seq_split_indeces[i]:seq_split_indeces[i+1]]
+            for i in range(len(gap_indeces) + 1)
+        ]
+        self.seq_locations = seq_locations
         # self.seq_as_clusters = list(np.arange(len(clusters_expansion)) @ clusters_expansion)
 
-    def add_loops(self, loops, seq_locations=None):
+    def add_loops(
+        self,
+        loops: Iterable[LoopInSeq]
+    ):
         self.loops.extend(loops)
         if self.clades is not None:
             self.hors = loops_to_HORs(
-                self.loops, self.clades, seq_locations=seq_locations)
+                self.loops, self.clades, seq_locations=self.seq_locations
+            )
 
     def __str__(self):
         return (
             f'Num clusters: {len(self.clusters_expansion)}, ' +
-            f'Seqs: {[
-                get_seq_as_txt(seq_as_clusters)
-                for seq_as_clusters in self.seqs_as_clusters
-            ]}, ' +
+            f'Seqs: {[get_seq_as_txt(seq_as_clusters) for seq_as_clusters in self.seqs_as_clusters]}, ' +
             f'Loops: {[str(loop) for loop in self.loops]}'
         )
 
@@ -57,7 +99,7 @@ class ClusteredSeq:
         }
 
 
-def matrix_sparsity(matrix):
+def matrix_sparsity(matrix: np.ndarray) -> float:
     return 1.0 - np.count_nonzero(matrix) / matrix.size
 
 # Compares two collections of spans in a sequence, called "coverages"
@@ -65,7 +107,10 @@ def matrix_sparsity(matrix):
 # Returns true iff the set of items associated with coverage_a contains the one associated with coverage_b
 
 
-def coverage_includes(coverage_a, coverage_b):
+def coverage_includes(
+    coverage_a: Iterable[LoopSpanInSeq],
+    coverage_b: Iterable[LoopSpanInSeq]
+) -> bool:
     return all([
         any([
             span_a.span_start <= span_b.span_start and span_a.span_start +
@@ -75,7 +120,10 @@ def coverage_includes(coverage_a, coverage_b):
     ])
 
 
-def coverage_diff(coverage_a, loops_b):
+def coverage_diff(
+    coverage_a: Iterable[LoopSpanInSeq],
+    loops_b: Iterable[LoopInSeq]
+) -> list[LoopInSeq]:
     return [
         loop_b
         for loop_b in loops_b
@@ -91,27 +139,28 @@ def coverage_diff(coverage_a, loops_b):
 
 
 def clusterings_with_hors(
-        monomer_seqs: list[SeqRecord] = None,
-        monomers_as_features: list[SeqFeature] = None,
-        monomer_locations: list[SimpleLocation] = None,
-        references: dict[SeqRecord] = None,
-        sorted: bool = False,
-        sorted_by_positive_strand_location: bool = False,
-        gap_indeces: list[int] = [],
-        max_allowed_bases_gap_in_hor: int = 10,
-        distance_matrix: np.array = None,
-        seq_labels_prefix: str = '',
-        starting_distance: int = 0,
-        min_num_clusters: int = 2, max_num_clusters: int = None,
-        order_clusters: bool = False,
-        require_loop: bool = True,
-        min_len_loop: int = 1, max_len_loop: int = 30,
-        min_loop_reps: int = 3,
-        require_increasing_loop_coverage: bool = True,
-        require_relevant_loop_coverage: bool = True,
-        incremental_loops: bool = False,
-        closure_sparsity_threshold: float = 0.97,
-        build_tree: bool = True) -> tuple[Phyloxml, HORInSeq, list[list[ClusteredSeq]]]:
+    monomer_seqs: list[SeqRecord] = None,
+    monomers_as_features: list[SeqFeature] = None,
+    monomer_locations: list[SimpleLocation] = None,
+    references: dict[SeqRecord] = None,
+    sorted: bool = False,
+    sorted_by_positive_strand_location: bool = False,
+    gap_indeces: list[int] = [],
+    max_allowed_bases_gap_in_hor: int = 10,
+    distance_matrix: np.ndarray = None,
+    seq_labels_prefix: str = '',
+    starting_distance: int = 0,
+    min_num_clusters: int = 2, max_num_clusters: int = None,
+    order_clusters: bool = False,
+    require_loop: bool = True,
+    min_len_loop: int = 1, max_len_loop: int = 30,
+    min_loop_reps: int = 3,
+    require_increasing_loop_coverage: bool = True,
+    require_relevant_loop_coverage: bool = True,
+    incremental_loops: bool = False,
+    closure_sparsity_threshold: float = 0.97,
+    build_tree: bool = True
+) -> tuple[Phyloxml, HORInSeq, list[list[ClusteredSeq]]]:
     """Given a set of related DNA/RNA sequences, occurring in contiguous
     blocks and called monomers, this function looks for higher order
     repeats, i.e. repeats of sequence of families of sequences. 
@@ -175,7 +224,7 @@ def clusterings_with_hors(
     max_allowed_bases_gap_in_hor: int, default=10
         Maximum accepted gap (in number of bases) between monomers
         considered contiguous for HOR discovery purposes.
-    distance_matrix: np.array, optional
+    distance_matrix: np.ndarray, optional
         Matrix of pairwise monomer distances, if already computed;
         it must be of shape (n,n), where n is the number of monomers;
         if not given it is computed by scratch.
@@ -323,13 +372,15 @@ def clusterings_with_hors(
                 clustered_seq = ClusteredSeq(
                     ordered_clusters_expansion,
                     clades=curr_clades,
-                    gap_indeces=gap_indeces
+                    gap_indeces=gap_indeces,
+                    seq_locations=monomer_locations
                 )
             else:
                 clustered_seq = ClusteredSeq(
                     curr_clusters_expansion,
                     clades=curr_clades,
-                    gap_indeces=gap_indeces
+                    gap_indeces=gap_indeces,
+                    seq_locations=monomer_locations
                 )
             print(f'Looking for loops in {str(clustered_seq)}...')
             loops = find_loops(
@@ -339,10 +390,11 @@ def clusterings_with_hors(
             )
             print(f'Loops found: {len(loops)}')
             if incremental_loops:
-                clustered_seq.add_loops(coverage_diff(
-                    last_loops_coverage, loops), seq_locations=monomer_locations)
+                clustered_seq.add_loops(
+                    coverage_diff(last_loops_coverage, loops)
+                )
             else:
-                clustered_seq.add_loops(loops, seq_locations=monomer_locations)
+                clustered_seq.add_loops(loops)
 
             if len(loops) > 0 or not require_loop:
                 loops_coverage = [
@@ -427,7 +479,7 @@ def clusterings_with_hors(
         return clusterings
 
 
-def bfs_merge_rec(hor_tree_level):
+def bfs_merge_rec(hor_tree_level: list[HORInSeq]):
     if not any([hor_in_level.sub_hors for hor_in_level in hor_tree_level]):
         return [hor_tree_level]
     sub_hors = [sub_hor for hor_in_level in hor_tree_level for sub_hor in (
@@ -435,10 +487,5 @@ def bfs_merge_rec(hor_tree_level):
     return [sub_hors] + bfs_merge_rec(sub_hors)
 
 
-def bfs_merge(hor_tree_root):
+def bfs_merge(hor_tree_root: HORInSeq):
     return bfs_merge_rec([hor_tree_root])
-
-
-def bfs(hor_in_seq, tree):
-    sub_tree = tree.common_ancestor(hor_in_seq.hor.clade_seq)
-    hor_in_seq.sub_hors

@@ -1,9 +1,8 @@
-from typing import List
 from itertools import accumulate
 from cluster import get_seq_as_txt
 
-def normalize_loop(loop_seq):
-    def invert_pos(pos):
+def normalize_loop(loop_seq: list[int]) -> tuple[list[int], int]:
+    def invert_pos(pos: int) -> int:
         return len(loop_seq) - pos if pos > 0 else 0
     options = []
     for start_index in range(len(loop_seq)):
@@ -11,20 +10,32 @@ def normalize_loop(loop_seq):
     options.sort()
     return (options[0][:-1],invert_pos(options[0][-1]))
 
-def denormalize_loop(loop_seq, in_loop_start):
+def denormalize_loop(
+    loop_seq: list[int],
+    in_loop_start: int
+) -> list[int]:
     return loop_seq[in_loop_start:] + loop_seq[:in_loop_start]
 
 class Loop:
-    loop_seq: List[int]
+    loop_seq: list[int]
 
-    def __init__(self, loop_seq):
+    def __init__(self, loop_seq: list[int]):
         self.loop_seq = loop_seq
 
     def __str__(self):
         return get_seq_as_txt(self.loop_seq)
 
 class LoopSpanInSeq:
-    def __init__(self, span_start, span_length, num_of_laps, in_loop_start):
+    span_start: int
+    span_length: int
+    num_of_laps: int
+    in_loop_start: int
+
+    def __init__(
+        self,
+        span_start: int, span_length: int,
+        num_of_laps: int, in_loop_start: int
+    ):
         self.span_start = span_start
         self.span_length = span_length
         self.num_of_laps = num_of_laps
@@ -38,13 +49,13 @@ class LoopSpanInSeq:
 
 class LoopInSeq:
     loop: Loop
-    spans_in_seq: List[LoopSpanInSeq]
+    spans_in_seq: list[LoopSpanInSeq]
 
-    def __init__(self, loop, spans_in_seq = []):
+    def __init__(self, loop: Loop, spans_in_seq: list[LoopSpanInSeq] = []):
         self.loop = loop
         self.spans_in_seq = spans_in_seq
 
-    def add_span(self, span_in_seq):
+    def add_span(self, span_in_seq: LoopSpanInSeq):
         self.spans_in_seq.append(span_in_seq)
 
     def __str__(self):
@@ -56,7 +67,10 @@ class LoopInSeq:
             )
         )
 
-def find_loops(seqs, min_loop_size = 2, max_loop_size = 30, min_loops = 3):
+def find_loops(
+    seqs: list[list[int]],
+    min_loop_size: int = 2, max_loop_size: int = 30, min_loops: int = 3
+) -> list[LoopInSeq]:
     seq_offsets = [0] + list(accumulate([len(seq) for seq in seqs]))
     loops_found = {} #defaultdict(list)
     for seqIndex, seq in enumerate(seqs):
@@ -69,7 +83,7 @@ def find_loops(seqs, min_loop_size = 2, max_loop_size = 30, min_loops = 3):
                 loop_length = curr_loops[loop_size] + loop_size
                 loop_laps = loop_length // loop_size
                 loop_items = seq[loop_start:loop_start + loop_size]
-                (normal_loop, in_loop_start_position) = normalize_loop(loop_items)
+                normal_loop, in_loop_start_position = normalize_loop(loop_items)
                 normal_loop_str = str(normal_loop)
                 loop_span = LoopSpanInSeq(seq_offsets[seqIndex] + loop_start, loop_length, loop_laps, in_loop_start_position)
                 if normal_loop_str not in loops_found:
