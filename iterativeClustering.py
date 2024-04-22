@@ -29,7 +29,7 @@ class ClusteredSeq:
         where m is the number of clusters and n is the number of monomers.
     loops : list[LoopInSeq]
         List of found loops (expressed in terms of local clusters).
-    hors: list[]
+    hors: list[HORInSeq]
         List of found HORs (loops expressed in terms of clades).
     seq_split_indeces: list[int]
         List of the indeces at which there are gaps in the list of monomers.
@@ -37,8 +37,19 @@ class ClusteredSeq:
         Each list of contiguous monomers (obtained from the original
         list split by the gaps), represented as the list of corresponding
         cluster numbers.
+    seq_locations: list[SimpleLocation]
+        List of the locations of the monomers (respect to the original
+        reference sequences).
 
     """
+
+    clades: list[Clade]
+    clusters_expansion : np.ndarray
+    loops : list[LoopInSeq]
+    hors: list[HORInSeq]
+    seq_split_indeces: list[int]
+    seqs_as_clusters: list[list[int]]
+    seq_locations: list[SimpleLocation]
 
     def __init__(
         self,
@@ -46,12 +57,11 @@ class ClusteredSeq:
         loops: list[LoopInSeq] = [],
         clades: list[Clade] = None,
         gap_indeces: list[int] = [],
-        seq_locations: Iterable[SimpleLocation] = None
+        seq_locations: list[SimpleLocation] = None
     ):
         self.clades = clades
         self.clusters_expansion = clusters_expansion
         self.loops = []
-        self.add_loops(loops)
         whole_seq_as_clusters = list(
             np.arange(len(clusters_expansion)) @ clusters_expansion
         )
@@ -61,6 +71,7 @@ class ClusteredSeq:
             for i in range(len(gap_indeces) + 1)
         ]
         self.seq_locations = seq_locations
+        self.add_loops(loops)
         # self.seq_as_clusters = list(np.arange(len(clusters_expansion)) @ clusters_expansion)
 
     def add_loops(
