@@ -157,6 +157,7 @@ def build_string_distance_matrix_by_chunks(
         for i in range(math.ceil(len(diagonal_blocks) / 2))
     ]
     
+    print(f"Num processes: {len(jobs_params)}")
     print(f"Blocks: {[str(jb) for jb in jobs_params]}")
     
     with Pool(max_num_processes) as p:
