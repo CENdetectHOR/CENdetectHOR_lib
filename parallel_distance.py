@@ -1,12 +1,10 @@
 from functools import partial
 import multiprocessing
 import math
-from collections.abc import Iterable
 from matrix_closure import matrix_sparsity, graph_connected_components
 import numpy as np
 import editdistance
 from Bio.SeqRecord import SeqRecord
-from typing import NamedTuple
 from multiprocessing import Pool
 from dataclasses import dataclass
 
