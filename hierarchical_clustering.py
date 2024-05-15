@@ -44,7 +44,8 @@ def compact_phylogeny(phylogeny: Phylogeny) -> Phylogeny:
     
 def hierarchical_clustering(
     features: list[SeqFeature],
-    dist_matrix: np.ndarray
+    dist_matrix: np.ndarray,
+    sort: bool = True
 ) -> Phylogeny:
     clustering = AgglomerativeClustering(
         metric='precomputed',
@@ -66,6 +67,8 @@ def hierarchical_clustering(
     binary_philogeny = new_phylogeny(tree_nodes[-1])
     multichild_phylogeny = compact_phylogeny(binary_philogeny)
     fix_phylogeny_branch_length(multichild_phylogeny)
+    if (sort):
+        sort_phylogeny_by_leaf_names(multichild_phylogeny)
     return multichild_phylogeny
 
 def fix_clade_branch_length(clade: Clade) -> Clade:
