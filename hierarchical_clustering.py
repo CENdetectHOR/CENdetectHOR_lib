@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import numpy as np
 from sklearn.cluster import AgglomerativeClustering
 from treeFromClusters import features_to_leaves, new_clade, new_phylogeny
@@ -64,20 +65,42 @@ def hierarchical_clustering(
         
     binary_philogeny = new_phylogeny(tree_nodes[-1])
     multichild_phylogeny = compact_phylogeny(binary_philogeny)
-    return fix_phylogeny_branch_length(multichild_phylogeny)
+    fix_phylogeny_branch_length(multichild_phylogeny)
+    return multichild_phylogeny
 
 def fix_clade_branch_length(clade: Clade) -> Clade:
     max_children_distance = 0 if len(clade.clades) == 0 else max([subclade.branch_length for subclade in clade.clades])
-    return Clade(
-        clades=[fix_clade_branch_length(subclade) for subclade in clade.clades],
-        branch_length= (clade.branch_length - max_children_distance) / 2
-    )
+    clade.branch_length = (clade.branch_length - max_children_distance) / 2
+    for subclade in clade.clades:
+        fix_clade_branch_length(subclade)
     
 def fix_phylogeny_branch_length(phylogeny: Phylogeny) -> Phylogeny:
-    return Phylogeny(
-        name=phylogeny.name,
-        root=Clade(clades=[
-            fix_clade_branch_length(subclade)
-            for subclade in phylogeny.root.clades
-        ])
+    for subclade in phylogeny.root.clades:
+        fix_clade_branch_length(subclade)
+    
+@dataclass
+class CladeSortResult:
+    sorted_clade: Clade
+    min_label: str    
+
+def sort_clade_by_leaf_names(clade: Clade) -> CladeSortResult:
+    if len(clade.clades) == 0:
+        return CladeSortResult(sorted_clade=clade, min_label=clade.name)
+    sorted_subclade_results = [
+        sort_clade_by_leaf_names(subclade) for subclade in clade.clades
+    ]
+    sorted_subclade_results.sort(
+        key=lambda c: c.min_label
     )
+    clade.clades = [
+        clade_sort_result.sorted_clade
+        for clade_sort_result in sorted_subclade_results
+    ]
+    return CladeSortResult(
+        sorted_clade=clade,
+        min_label=sorted_subclade_results[0].min_label
+    )
+    
+def sort_phylogeny_by_leaf_names(phylogeny: Phylogeny):
+    sort_clade_by_leaf_names(phylogeny.root)
+    
