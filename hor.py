@@ -112,10 +112,11 @@ def name_hor_tree(
             clade_count += 1
             clade.name = f'{clade_name_prefix}{node_prefix}#{clade_count}'
     common_prefix_for_sub_hors = f"{node_prefix}{level_separator if len(node_prefix) > 0 else ''}"
-    for sub_hor_index, sub_hor in enumerate(hor.sub_hors):
-        name_hor_tree(
-            sub_hor,
-            node_prefix=f'{common_prefix_for_sub_hors}{sub_hor_index + 1}')
+    if hasattr(hor, 'sub_hors'):
+        for sub_hor_index, sub_hor in enumerate(hor.sub_hors):
+            name_hor_tree(
+                sub_hor,
+                node_prefix=f'{common_prefix_for_sub_hors}{sub_hor_index + 1}')
         
 def hor_to_clade(hor: HORInSeq) -> Clade:
     clade_seq_str = ",".join([clade.name for clade in hor.hor.clade_seq])
@@ -123,7 +124,9 @@ def hor_to_clade(hor: HORInSeq) -> Clade:
         # node_id=hor.id,
         name=hor.id,
         sequences=[Sequence(type='dna', location=location) for location in hor.locations],
-        clades=[hor_to_clade(sub_hor) for sub_hor in hor.sub_hors],
+        clades=
+            [hor_to_clade(sub_hor) for sub_hor in hor.sub_hors]
+            if hasattr(hor, 'sub_hors') else [],
         properties=[Property(value=clade_seq_str, ref='monomer_clade_seq', applies_to='clade', datatype='xsd:string')]
     )
 
