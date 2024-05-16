@@ -4,49 +4,136 @@ from sklearn.cluster import AgglomerativeClustering
 from treeFromClusters import features_to_leaves, new_clade, new_phylogeny
 from Bio.SeqFeature import SeqFeature
 from Bio.Phylo.PhyloXML import Clade, Phylogeny, Sequence, Phyloxml
+from phylogeny_sorting import sort_phylogeny_by_leaf_names
 
-def clades_to_descendants_at_distance(clades: list[Clade], distance: int) -> list[Clade]:
-    return [
-        descendant_clade
-        for child_clade in clades
-        for descendant_clade in clade_to_descendants_at_distance(child_clade, distance)
-    ]
+class SimplePhylogeny:
+    num_leaves: int
+    children: list[list[int]]
+    root_clade_index: int
+    num_clades: int
+    
+    def __init__(
+        self,
+        num_leaves: int,
+        children: list[list[int]]
+    ):
+        self.num_leaves = num_leaves
+        self.children = children
+        self.num_clades = num_leaves + len(children)
+        self.root_clade_index = self.num_clades - 1
+    
+    def get_clade_children(self, clade_index: int) -> list[int]:
+        return (
+            [] if clade_index < self.num_leaves
+            else self.children[clade_index - self.num_leaves]
+        )
+    
+    # def set_clade_children(self, clade_index: int, children: list[int]):
+    #     return (
+    #         [] if clade_index < self.num_leaves
+    #         else self.children[clade_index - self.num_leaves]
+    #     )
+    
+    def get_clade_height(self, clade_index: int) -> int:
+        return (
+            0 if clade_index < self.num_leaves
+            else 1 + max([
+                self.get_clade_height(subclade_index)
+                for subclade_index in self.get_clade_children(clade_index)
+            ])
+        )
 
-def clade_to_descendants_at_distance(clade: Clade, distance: int) -> list[Clade]:
-    if clade.branch_length < distance:
-        return []
-    # if clade.branch_length > distance:
-    #     raise Exception("Unexpected distance growth going down the tree")
-    descendant_clades_at_distance = clades_to_descendants_at_distance(clade.clades, distance)
-    if len(descendant_clades_at_distance) == 0:
-        return [clade]
-    return descendant_clades_at_distance
+class SimplePhylogenyWithDistances(SimplePhylogeny):
+    max_distances: list[int]
+    
+    def __init__(
+        self,
+        num_leaves: int,
+        children: list[list[int]],
+        max_distances: list[int]
+    ):
+        super().__init__(num_leaves=num_leaves, children=children)
+        self.max_distances = max_distances
+    
+    def get_clade_distance(self, clade_index: int):
+        return (
+            0 if clade_index < self.num_leaves
+            else self.max_distances[clade_index - self.num_leaves]
+        )
+    
+class SimplePhylogenyWithBranchLengths(SimplePhylogeny):
+    branch_lengths: list[int] = None
+    
+    def __init__(
+        self,
+        num_leaves: int,
+        children: list[list[int]],
+        branch_lengths: list[int]
+    ):
+        super().__init__(num_leaves=num_leaves, children=children)
+        self.branch_lengths = branch_lengths
+    
+    def get_branch_length(self, clade_index: int):
+        return self.branch_lengths[clade_index]
+    
+def compact_phylogeny(
+    input_phylogeny: SimplePhylogenyWithDistances
+) -> SimplePhylogenyWithBranchLengths:
+    def clades_to_descendants_at_distance(clade_indeces: list[int], distance: int) -> list[Clade]:
+        return [
+            descendant_clade
+            for child_clade_index in clade_indeces
+            for descendant_clade in clade_to_descendants_at_distance(child_clade_index, distance)
+        ]
 
-def compact_clade(clade: Clade) -> Clade:
-    if len(clade.clades) == 0:
-        return clade
-    children_distance = clade.clades[0].branch_length
-    # if len(set([subclade.branch_length for subclade in clade.clades])) != 1:
-    #     raise Exception("Unexpected presence of multiple distances in children nodes")
-    new_subclades = clades_to_descendants_at_distance(clade.clades, children_distance)
-    # if len(set([subclade.branch_length for subclade in new_subclades])) != 1:
-    #     raise Exception(f"Unexpected creation of multiple distances in children nodes while looking for distance {children_distance}: {set([subclade.branch_length for subclade in new_subclades])}")
-    return Clade(
-        clades=[compact_clade(clade) for clade in new_subclades],
-        branch_length=clade.branch_length
-    )
+    def clade_to_descendants_at_distance(clade_index: int, distance: int) -> list[Clade]:
+        if input_phylogeny.get_clade_distance(clade_index) < distance:
+            return [clade_index]
+        descendant_clades_at_distance = clades_to_descendants_at_distance(
+            input_phylogeny.get_clade_children(clade_index), distance
+        )
+        if len(descendant_clades_at_distance) == 0:
+            return [clade_index]
+        return descendant_clades_at_distance
+    
+    new_internal_clades_distances = []
+    new_internal_clades_children = []
+    
+    def compact_clade(clade_index: int) -> int:
+        if len(input_phylogeny.get_clade_children(clade_index)) == 0:
+            return clade_index
+        new_subclades = clades_to_descendants_at_distance(
+            input_phylogeny.get_clade_children(clade_index),
+            input_phylogeny.get_clade_distance(clade_index)
+        )
+        new_clade_index = input_phylogeny.num_leaves + len(new_internal_clades_distances)
+        new_internal_clades_children.append([compact_clade(clade) for clade in new_subclades])
+        new_internal_clades_distances.append(input_phylogeny.get_clade_distance(clade_index))
+        return new_clade_index
 
-def compact_phylogeny(phylogeny: Phylogeny) -> Phylogeny:
-    return Phylogeny(
-        name=phylogeny.name,
-        root=compact_clade(phylogeny.root)
+    new_root_clade_index = compact_clade(input_phylogeny.root_clade_index)
+    
+    new_clades_branch_length = [0] * (len(new_internal_clades_children) + input_phylogeny.num_leaves)
+    def set_clade_branch_length(clade_index: int):
+        for subclade_index in input_phylogeny.get_clade_children(clade_index):
+            new_clades_branch_length[subclade_index] = (
+                input_phylogeny.get_clade_distance(clade_index) -
+                input_phylogeny.get_clade_distance(subclade_index)
+            ) / 2
+            set_clade_branch_length(subclade_index)
+    
+    set_clade_branch_length(new_root_clade_index)
+    
+    return SimplePhylogenyWithBranchLengths(
+        num_leaves=input_phylogeny.num_leaves,
+        children=new_internal_clades_children,
+        branch_lengths=new_clades_branch_length
     )
     
 def hierarchical_clustering(
-    features: list[SeqFeature],
     dist_matrix: np.ndarray,
     sort: bool = True
-) -> Phylogeny:
+) -> SimplePhylogeny:
     clustering = AgglomerativeClustering(
         metric='precomputed',
         compute_full_tree=True,
@@ -55,55 +142,121 @@ def hierarchical_clustering(
         n_clusters=1)
 
     clustering.fit(dist_matrix)
-    tree_nodes = features_to_leaves(features)
     
-    for node_index, node_children in enumerate(clustering.children_):
+    phylogeny = compact_phylogeny(SimplePhylogenyWithDistances(
+        num_leaves=dist_matrix.shape[0],
+        children=clustering.children_,
+        max_distances=clustering.distances_
+    ))
+    
+    if sort:
+        sort_by_leaf_indexes(phylogeny)
+        
+    return phylogeny
+
+    
+def build_phylogeny(
+    simple_phylogeny: SimplePhylogenyWithBranchLengths,
+    features: list[SeqFeature],
+    sort: bool = True
+) -> Phylogeny:
+    tree_nodes = features_to_leaves(features)
+    for node_index in range(simple_phylogeny.num_clades):
         tree_nodes.append(new_clade(
             label=None,
-            branch_length=clustering.distances_[node_index],
-            clades=[tree_nodes[child_index] for child_index in node_children]
+            branch_length=simple_phylogeny.get_branch_length(node_index),
+            clades=[
+                tree_nodes[child_index]
+                for child_index in simple_phylogeny.get_clade_children(node_index)]
         ))
-        
-    binary_philogeny = new_phylogeny(tree_nodes[-1])
-    multichild_phylogeny = compact_phylogeny(binary_philogeny)
-    fix_phylogeny_branch_length(multichild_phylogeny)
+    philogeny = new_phylogeny(tree_nodes[-1])
     if (sort):
-        sort_phylogeny_by_leaf_names(multichild_phylogeny)
-    return multichild_phylogeny
+        sort_phylogeny_by_leaf_names(philogeny)
+    return philogeny
 
-def fix_clade_branch_length(clade: Clade) -> Clade:
-    max_children_distance = 0 if len(clade.clades) == 0 else max([subclade.branch_length for subclade in clade.clades])
-    clade.branch_length = (clade.branch_length - max_children_distance) / 2
-    for subclade in clade.clades:
-        fix_clade_branch_length(subclade)
-    
-def fix_phylogeny_branch_length(phylogeny: Phylogeny) -> Phylogeny:
-    for subclade in phylogeny.root.clades:
-        fix_clade_branch_length(subclade)
-    
 @dataclass
 class CladeSortResult:
-    sorted_clade: Clade
-    min_label: str    
+    subclade_index: int
+    min_index: int    
 
-def sort_clade_by_leaf_names(clade: Clade) -> CladeSortResult:
-    if len(clade.clades) == 0:
-        return CladeSortResult(sorted_clade=clade, min_label=clade.name)
-    sorted_subclade_results = [
-        sort_clade_by_leaf_names(subclade) for subclade in clade.clades
-    ]
-    sorted_subclade_results.sort(
-        key=lambda c: c.min_label
-    )
-    clade.clades = [
-        clade_sort_result.sorted_clade
-        for clade_sort_result in sorted_subclade_results
-    ]
-    return CladeSortResult(
-        sorted_clade=clade,
-        min_label=sorted_subclade_results[0].min_label
-    )
+def sort_by_leaf_indexes(phylogeny: SimplePhylogeny):
     
-def sort_phylogeny_by_leaf_names(phylogeny: Phylogeny):
-    sort_clade_by_leaf_names(phylogeny.root)
+    def sort_clade_by_leaf_indices(clade_index: int):
+        if len(phylogeny.get_clade_children(clade_index)) == 0:
+            return clade_index
+        subclade_results = [
+            CladeSortResult(
+                subclade_index,
+                sort_clade_by_leaf_indices(subclade_index)
+            )
+            for subclade_index in phylogeny.get_clade_children(clade_index)
+        ]
+        subclade_results.sort(
+            key=lambda c: c.min_index
+        )
+        phylogeny.children[clade_index - phylogeny.num_leaves] = [
+            subclade_result.subclade_index
+            for subclade_result in subclade_results
+        ]
+        return subclade_results[0].min_index
     
+    sort_clade_by_leaf_indices(phylogeny.root_clade_index)
+        
+def get_clades_by_level(
+    phylogeny: SimplePhylogeny
+) -> tuple[list[list[int]],list[list[int]]]:
+    
+    clades_by_level = []
+    children_num_by_level = []
+
+    def set_by_height(clade_height: int, clade_index: int, children_num: int):
+        if clade_height >= len(clades_by_level):
+            missing_levels = clade_height - len(clades_by_level) + 1
+            clades_by_level.extend([[]] * missing_levels)
+            children_num_by_level.extend([[]] * missing_levels)
+        clades_by_level[clade_height].append(clade_index)
+        children_num_by_level[clade_height].append(children_num)
+
+    def extract_clades_by_height(clade_index: int):
+        subclade_indices = phylogeny.get_clade_children(clade_index)
+        subclade_heights = [
+            phylogeny.get_clade_height(subclade_index)
+            for subclade_index in subclade_indices
+        ]
+        clade_height = (
+            0 if len(subclade_indices) == 0
+            else 1 + max(subclade_heights)
+        )
+        for subclade_position, subclade_height in enumerate(subclade_heights):
+            subclade_index = subclade_indices[subclade_position]
+            extract_clades_by_height(subclade_index)
+            for height in range(subclade_height + 1, clade_height):
+                set_by_height(clade_height=height, clade_index=subclade_indices[subclade_position], children_num=1)            
+        set_by_height(clade_height=clade_height, clade_index=clade_index, children_num=len(subclade_indices))
+
+    extract_clades_by_height(phylogeny.root_clade_index)
+    return clades_by_level, children_num_by_level
+
+def get_clustering_matrices(phylogeny: SimplePhylogeny) -> list[np.ndarray]:
+    clades_by_level, children_num_by_height = get_clades_by_level(phylogeny)
+
+    def get_clustering_matrix_for_level(level: int) -> np.ndarray:
+        subclade_start_indexes = np.array(
+            [0] +
+            [
+                children_num
+                for children_num in children_num_by_height[level]]
+        ).cumsum()
+        return np.array([
+            [
+                subclade_index >= subclade_start_indexes[clade_index] and
+                subclade_index < subclade_start_indexes[clade_index + 1]
+                for subclade_index in range(subclade_start_indexes[-1])
+            ]
+            for clade_index in range(len(children_num_by_height[level]))
+        ])        
+
+    return [
+        get_clustering_matrix_for_level(level)
+        for level in range(1, len(children_num_by_height))
+    ]
