@@ -40,10 +40,10 @@ def new_leaves(leaf_labels: Iterable[str]) -> list[Clade]:
     return [new_clade(label=leaf_label) for leaf_label in leaf_labels]
 
 
-def feature_to_leave(feature: SeqFeature) -> Clade:
+def feature_to_leave(feature: SeqFeature, branch_length: int = 0) -> Clade:
     return Clade(
         name=feature.id,
-        branch_length=0,
+        branch_length=branch_length,
         sequences=[Sequence(type='dna', location=feature.location)])
 
 
