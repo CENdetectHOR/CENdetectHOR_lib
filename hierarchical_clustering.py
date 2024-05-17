@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import json
 import numpy as np
 from sklearn.cluster import AgglomerativeClustering
 from treeFromClusters import feature_to_leave, new_clade, new_phylogeny
@@ -76,6 +77,28 @@ class SimplePhylogenyWithBranchLengths(SimplePhylogeny):
     def get_branch_length(self, clade_index: int):
         return self.branch_lengths[clade_index]
     
+def save_phylogeny(
+    phylogeny: SimplePhylogenyWithBranchLengths,
+    filename: str
+):
+    with open(filename + '.json', 'w') as f:
+        json.dump({
+            'num_leaves': phylogeny.num_leaves,
+            'children': phylogeny.children,
+            'branch_lengths': phylogeny.branch_lengths
+        }, f)
+        
+def load_phylogeny(
+    filename: str
+) -> SimplePhylogenyWithBranchLengths:
+    with open(filename + '.json') as f:
+        dict = json.load(f)
+        return SimplePhylogenyWithBranchLengths(
+            num_leaves=dict['num_leaves'],
+            children=dict['children'],
+            branch_lengths=dict['branch_lengths']
+        )
+        
 def compact_phylogeny(
     input_phylogeny: SimplePhylogenyWithDistances
 ) -> SimplePhylogenyWithBranchLengths:
@@ -157,8 +180,8 @@ def hierarchical_clustering(
     phylogeny = distances_to_branch_lengths(
         compact_phylogeny(
             SimplePhylogenyWithDistances(
-                num_leaves=dist_matrix.shape[0],
-                children=clustering.children_,
+                num_leaves=int(dist_matrix.shape[0]),
+                children=[[int(subclade) for subclade in subclades]for subclades in clustering.children_],
                 max_distances=clustering.distances_
             )
         )
@@ -173,7 +196,7 @@ def hierarchical_clustering(
 def build_phylogeny(
     simple_phylogeny: SimplePhylogenyWithBranchLengths,
     features: list[SeqFeature],
-    sort: bool = True
+    sort: bool = False
 ) -> Phylogeny:
     
     def build_clade(clade_index: int):
@@ -313,3 +336,64 @@ def get_matrices(phylogeny: SimplePhylogeny) -> MatricesResult:
         expansion_matrices=expansion_matrices,
         clades_by_level=res.clades_by_level
     )
+
+def save_matrices(
+    matrices_result: MatricesResult,
+    base_dir: str = '',
+    clustering_matrices_template: str = 'clustering_{level}',
+    expansion_matrices_template: str = 'expansion_{level}',
+    clades_by_level_template: str = 'clades_{level}'
+):
+    clustering_matrices_template = base_dir + clustering_matrices_template
+    expansion_matrices_template = base_dir + expansion_matrices_template
+    clades_by_level_template = base_dir + clades_by_level_template
+    num_levels = len(matrices_result.clustering_matrices)
+    for level in range(num_levels):
+        with open(clustering_matrices_template.format(level=level) + '.npy', 'wb') as f:
+            np.save(f, matrices_result.clustering_matrices[level])
+        with open(expansion_matrices_template.format(level=level) + '.npy', 'wb') as f:
+            np.save(f, matrices_result.expansion_matrices[level])
+        with open(clades_by_level_template.format(level=level) + '.csv', 'w') as f:
+            f.write('\n'.join([str(clade) for clade in matrices_result.clades_by_level[level]]))
+
+def load_matrices(
+    base_dir: str = '',
+    clustering_matrices_template: str = 'clustering_{level}',
+    expansion_matrices_template: str = 'expansion_{level}',
+    clades_by_level_template: str = 'clades_{level}'
+) -> MatricesResult:
+    clustering_matrices_template = base_dir + clustering_matrices_template
+    expansion_matrices_template = base_dir + expansion_matrices_template
+    clades_by_level_template = base_dir + clades_by_level_template
+    
+    clustering_matrices = []
+    expansion_matrices = []
+    clades_by_level = []
+    
+    level = 0
+    try:
+        while(True):
+            clustering_matrices.append(
+                np.load(
+                    clustering_matrices_template.format(level=level) + '.npy'
+                )
+            )
+            expansion_matrices.append(
+                np.load(
+                    expansion_matrices_template.format(level=level) + '.npy'
+                )
+            )
+            with open(
+                clades_by_level_template.format(level=level) + '.csv'
+            ) as f:
+                clades_by_level.append(
+                    [int(line.rstrip()) for line in f]
+                )
+            level = level + 1
+    except IOError:
+        return MatricesResult(
+            clustering_matrices=clustering_matrices,
+            expansion_matrices=expansion_matrices,
+            clades_by_level=clades_by_level
+        )
+
