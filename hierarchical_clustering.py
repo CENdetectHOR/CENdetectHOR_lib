@@ -5,7 +5,6 @@ from sklearn.cluster import AgglomerativeClustering
 from treeFromClusters import feature_to_leave, new_clade, new_phylogeny
 from Bio.SeqFeature import SeqFeature
 from Bio.Phylo.PhyloXML import Clade, Phylogeny, Sequence, Phyloxml
-from phylogeny_sorting import sort_phylogeny_by_leaf_names
 
 class SimplePhylogeny:
     num_leaves: int
@@ -195,8 +194,7 @@ def hierarchical_clustering(
 
 def build_phylogeny(
     simple_phylogeny: SimplePhylogenyWithBranchLengths,
-    features: list[SeqFeature],
-    sort: bool = False
+    features: list[SeqFeature]
 ) -> Phylogeny:
     
     def build_clade(clade_index: int):
@@ -209,9 +207,6 @@ def build_phylogeny(
         
     root_clade = build_clade(simple_phylogeny.root_clade_index)
     philogeny = new_phylogeny(root_clade)
-
-    if (sort):
-        sort_phylogeny_by_leaf_names(philogeny)
 
     return philogeny
 
@@ -278,6 +273,9 @@ def get_clades_by_level(
     extract_clades_by_height(phylogeny.root_clade_index)
     return clades_by_level, children_num_by_level
 
+def matrix_sparsity(matrix: np.ndarray) -> float:
+    return 1.0 - np.count_nonzero(matrix) / matrix.size
+
 @dataclass
 class ClusteringMatricesResult:
     clustering_matrices: list[np.ndarray]
@@ -285,8 +283,10 @@ class ClusteringMatricesResult:
 
 def get_clustering_matrices(phylogeny: SimplePhylogeny) -> ClusteringMatricesResult:
     clades_by_level, children_num_by_height = get_clades_by_level(phylogeny)
+    print(f"Computing clustering matrices for {len(clades_by_level)} levels...")
 
     def get_clustering_matrix_for_level(level: int) -> np.ndarray:
+        print(f"Computing clustering matrix for level {level}...")
         subclade_start_indexes = np.array(
             [0] +
             [
@@ -329,20 +329,51 @@ def get_matrices(phylogeny: SimplePhylogeny) -> MatricesResult:
     clustering_matrices = res.clustering_matrices
     expansion_matrices = [clustering_matrices[0]]
     num_levels = len(clustering_matrices)
+    print(f"Computing expansion matrices for {num_levels} levels...")
     for level in range(1, num_levels):
+        print(f"Computing expansion matrix for level {level}...")
         expansion_matrices.append(clustering_matrices[level] @ expansion_matrices[level - 1])
     return MatricesResult(
         clustering_matrices=clustering_matrices,
         expansion_matrices=expansion_matrices,
         clades_by_level=res.clades_by_level
     )
+    
+def save_matrix(
+    matrix: np.ndarray,
+    filename: str,
+    closure_sparsity_threshold: float = 0.97
+):
+    if matrix_sparsity(matrix) > closure_sparsity_threshold:
+        save_npz(filename, )
+
+def save_clustering_matrices(
+    matrices_result: ClusteringMatricesResult,
+    base_dir: str = '',
+    clustering_matrices_template: str = 'clustering_{level}',
+    clades_by_level_template: str = 'clades_{level}',
+    closure_sparsity_threshold: float = 0.97
+):
+    clustering_matrices_template = base_dir + clustering_matrices_template
+    clades_by_level_template = base_dir + clades_by_level_template
+    num_levels = len(matrices_result.clustering_matrices)
+    for level in range(num_levels):
+        with open(clustering_matrices_template.format(level=level) + '.npy', 'wb') as f:
+            np.save(f, matrices_result.clustering_matrices[level])
+        with open(expansion_matrices_template.format(level=level) + '.npy', 'wb') as f:
+            np.save(f, matrices_result.expansion_matrices[level])
+        with open(clades_by_level_template.format(level=level) + '.csv', 'w') as f:
+            f.write('\n'.join([str(clade) for clade in matrices_result.clades_by_level[level]]))
+
+
 
 def save_matrices(
     matrices_result: MatricesResult,
     base_dir: str = '',
     clustering_matrices_template: str = 'clustering_{level}',
     expansion_matrices_template: str = 'expansion_{level}',
-    clades_by_level_template: str = 'clades_{level}'
+    clades_by_level_template: str = 'clades_{level}',
+    closure_sparsity_threshold: float = 0.97
 ):
     clustering_matrices_template = base_dir + clustering_matrices_template
     expansion_matrices_template = base_dir + expansion_matrices_template
