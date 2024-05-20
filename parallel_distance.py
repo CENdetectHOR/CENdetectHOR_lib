@@ -1,44 +1,96 @@
 from functools import partial
 import multiprocessing
 import math
-from matrix_closure import matrix_sparsity, graph_connected_components
 import numpy as np
 import editdistance
 from Bio.SeqRecord import SeqRecord
 from multiprocessing import Pool
 from dataclasses import dataclass
 
+num_bytes_to_max_value_map = [
+    2**(num_bytes * 8) - 1 for num_bytes in range(1, 33)
+]
 
-def build_string_distance_triu(strings: list[str]) -> np.ndarray:
-    seq_triu = np.array([
-        (0 if j <= i else editdistance.eval(seq_i, strings[j]))
-        for i, seq_i in enumerate(strings)
-        for j in range(len(strings))
-    ])
+
+def num_bytes_to_max_value(num_bytes: int) -> int:
+    return num_bytes_to_max_value_map[num_bytes - 1]
+
+def limited(x: int, num_bytes: int) -> int:
+    return min(x, num_bytes_to_max_value(num_bytes))
+
+def num_bytes_to_uint_dtype(num_bytes: int) -> np.dtype:
+    if num_bytes == 1:
+        return np.uint8
+    if num_bytes == 2:
+        return np.uint16
+    if num_bytes <= 4:
+        return np.uint32
+    if num_bytes <= 8:
+        return np.uint64
+    if num_bytes <= 16:
+        return np.uint128
+    if num_bytes <= 32:
+        return np.uint256
+    raise Exception('Unsupported num of bytes requested for integer')
+
+def build_string_distance_triu(
+    strings: list[str],
+    num_bytes_for_each_distance: int = 1
+) -> np.ndarray:
+    seq_triu = np.array(
+        [
+            (
+                0 if j <= i
+                else limited(
+                    editdistance.eval(seq_i, strings[j]),
+                    num_bytes=num_bytes_for_each_distance
+                )
+            )
+            for i, seq_i in enumerate(strings)
+            for j in range(len(strings))
+        ],
+        dtype=num_bytes_to_uint_dtype(num_bytes_for_each_distance)
+    )
     seq_triu.shape = (len(strings), len(strings))
     return seq_triu
 
 
-def build_string_distance_matrix(strings: list[str]) -> np.ndarray:
-    seq_triu = build_string_distance_triu(strings)
+def build_string_distance_matrix(
+    strings: list[str],
+    num_bytes_for_each_distance: int = 1
+) -> np.ndarray:
+    seq_triu = build_string_distance_triu(strings, num_bytes_for_each_distance)
     return seq_triu + seq_triu.T
 
 
 def build_string_cross_distance_matrix(
     row_strings: list[str],
-    col_strings: list[str]
+    col_strings: list[str],
+    num_bytes_for_each_distance: int = 1
 ) -> np.ndarray:
-    dist_matrix = np.array([
-        editdistance.eval(row_string, col_string)
-        for row_string in row_strings
-        for col_string in col_strings
-    ])
+    dist_matrix = np.array(
+        [
+            limited(
+                editdistance.eval(row_string, col_string),
+                num_bytes=num_bytes_for_each_distance
+            )
+            for row_string in row_strings
+            for col_string in col_strings
+        ],
+        dtype=num_bytes_to_uint_dtype(num_bytes_for_each_distance)
+    )
     dist_matrix.shape = (len(row_strings), len(col_strings))
     return dist_matrix
 
 
-def build_seqs_distance_matrix(seqs: list[SeqRecord]) -> np.ndarray:
-    return build_string_distance_matrix([str(seq.seq) for seq in seqs])
+def build_seqs_distance_matrix(
+    seqs: list[SeqRecord],
+    num_bytes_for_each_distance: int = 1
+) -> np.ndarray:
+    return build_string_distance_matrix(
+        [str(seq.seq) for seq in seqs],
+        num_bytes_for_each_distance=num_bytes_for_each_distance
+    )
 
 @dataclass
 class ChunkIndex:
@@ -150,11 +202,16 @@ class FileSystemChunkStore:
         np.save(filename, chunk_results.get_data())
 
 
-def compute_chunk(chunk_params: ChunkParams) -> ChunkResults:
+def compute_chunk(
+    chunk_params: ChunkParams,
+    num_bytes_for_each_distance: int = 1
+) -> ChunkResults:
     if isinstance(chunk_params, ChunkParamsDiagonal):
         return ChunkResultsDiagonal(
             index=chunk_params.index,
-            dist_triu=build_string_distance_triu(chunk_params.strings)
+            dist_triu=build_string_distance_triu(
+                chunk_params.strings,
+                num_bytes_for_each_distance)
         )
     if isinstance(chunk_params, ChunkParamsInternal):
         return ChunkResultsInternal(
@@ -162,27 +219,36 @@ def compute_chunk(chunk_params: ChunkParams) -> ChunkResults:
             col_index=chunk_params.col_index,
             dist_matrix=build_string_cross_distance_matrix(
                 row_strings=chunk_params.row_strings,
-                col_strings=chunk_params.col_strings
+                col_strings=chunk_params.col_strings,
+                num_bytes_for_each_distance=num_bytes_for_each_distance
             )
         )
 
 def compute_chunk_if_needed(
     chunk_params: ChunkParams,
-    chunk_store: ChunkStore = dummy_chunk_store
+    chunk_store: ChunkStore = dummy_chunk_store,
+    num_bytes_for_each_distance: int = 1
 ) -> ChunkResults:
     cached_chunk_results = chunk_store.get(chunk_params)
     if cached_chunk_results is not None:
         return cached_chunk_results
-    fresh_chunk_results = compute_chunk(chunk_params)
+    fresh_chunk_results = compute_chunk(
+        chunk_params,
+        num_bytes_for_each_distance
+    )
     chunk_store.set(chunk_params, fresh_chunk_results)
     return fresh_chunk_results
 
 def execute_job(
     job_params: JobParams,
-    chunk_store: ChunkStore = dummy_chunk_store
+    chunk_store: ChunkStore = dummy_chunk_store,
+    num_bytes_for_each_distance: int = 1
 ) -> JobResult:
     return JobResult([
-        compute_chunk_if_needed(chunk_params, chunk_store)
+        compute_chunk_if_needed(
+            chunk_params, chunk_store,
+            num_bytes_for_each_distance
+        )
         for chunk_params in job_params.chunk_params
     ])
 
@@ -191,7 +257,8 @@ def build_string_distance_matrix_by_chunks(
     strings: list[str],
     num_chunks: int = None,
     max_num_processes: int = None,
-    chunk_store: ChunkStore = dummy_chunk_store
+    chunk_store: ChunkStore = dummy_chunk_store,
+    num_bytes_for_each_distance = 1
 ) -> np.ndarray:
 
     num_strings = len(strings)
@@ -243,7 +310,14 @@ def build_string_distance_matrix_by_chunks(
     print(f"Blocks: {[str(jb) for jb in jobs_params]}")
 
     with Pool(max_num_processes) as p:
-        job_results = p.map(partial(execute_job, chunk_store=chunk_store),jobs_params)
+        job_results = p.map(
+            partial(
+                execute_job,
+                chunk_store=chunk_store,
+                num_bytes_for_each_distance=num_bytes_for_each_distance
+            ),
+            jobs_params
+        )
 
     results_matrix = [
         [
@@ -254,7 +328,7 @@ def build_string_distance_matrix_by_chunks(
                 chunk_size
                 if col_index < num_chunks - 1 or num_strings % chunk_size == 0
                 else num_strings % chunk_size
-            ))
+            ), dtype=num_bytes_to_uint_dtype(num_bytes_for_each_distance))
             for col_index in range(num_chunks)
         ]
         for row_index in range(num_chunks)
