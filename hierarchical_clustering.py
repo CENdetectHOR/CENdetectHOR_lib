@@ -180,7 +180,7 @@ def hierarchical_clustering(
         compact_phylogeny(
             SimplePhylogenyWithDistances(
                 num_leaves=int(dist_matrix.shape[0]),
-                children=[[int(subclade) for subclade in subclades]for subclades in clustering.children_],
+                children=[[int(subclade) for subclade in subclades] for subclades in clustering.children_],
                 max_distances=clustering.distances_
             )
         )
@@ -360,8 +360,6 @@ def save_clustering_matrices(
     for level in range(num_levels):
         with open(clustering_matrices_template.format(level=level) + '.npy', 'wb') as f:
             np.save(f, matrices_result.clustering_matrices[level])
-        with open(expansion_matrices_template.format(level=level) + '.npy', 'wb') as f:
-            np.save(f, matrices_result.expansion_matrices[level])
         with open(clades_by_level_template.format(level=level) + '.csv', 'w') as f:
             f.write('\n'.join([str(clade) for clade in matrices_result.clades_by_level[level]]))
 
