@@ -68,10 +68,21 @@ class LoopInSeq:
         )
 
 def find_loops(
-    seqs: list[list[int]],
+    seqs: list[list[int]] = None,
+    whole_seq: list[int] = None,
+    gap_indices: list[int] = None,
     min_loop_size: int = 2, max_loop_size: int = 30, min_loops: int = 3
 ) -> list[LoopInSeq]:
-    seq_offsets = [0] + list(accumulate([len(seq) for seq in seqs]))
+    
+    if seqs is None:
+        seq_offsets = [0] + gap_indices + [len(whole_seq)]
+        seqs = [
+            whole_seq[seq_offsets[i]:seq_offsets[i+1]]
+            for i in range(len(gap_indices) + 1)
+        ]
+    else:
+        seq_offsets = [0] + list(accumulate([len(seq) for seq in seqs]))
+        
     loops_found = {} #defaultdict(list)
     for seqIndex, seq in enumerate(seqs):
 
