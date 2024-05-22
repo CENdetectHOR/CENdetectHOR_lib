@@ -74,7 +74,7 @@ def extract_indices(indexed_list):
 
 def sorted_locations_indeces(locations):
     indexed_locations = list(enumerate([location for location in locations]))
-    sorted_indeces = []
+    sorted_indices = []
     for curr_ref in sorted(set([location.ref for location in locations])):
         curr_ref_indexed_locations = [
             indexed_location for indexed_location in indexed_locations if indexed_location[1].ref == curr_ref
@@ -89,13 +89,13 @@ def sorted_locations_indeces(locations):
 
         def get_start(indexed_location):
             return indexed_location[1].start
-        sorted_indeces.extend(
+        sorted_indices.extend(
             extract_indices(
                 sorted(indexed_locations_by_strand(1), key=get_start))
             + extract_indices(sorted(indexed_locations_by_strand(-1),
                               key=get_start, reverse=True))
         )
-    return sorted_indeces
+    return sorted_indices
 
 
 def order_by_indices(list_to_order, reordered_indeces):
@@ -129,3 +129,76 @@ def order_matrix_by_indeces(matrix_to_order, reordered_indeces, reorder_rows=Tru
             for col_index in range(matrix_to_order.shape[1])
         ] for row_index in range(matrix_to_order.shape[0])]
     )
+
+class SeqFeaturesByContiguity:
+    sorted_seq_features: list[SeqFeature]
+    gap_indices: list[int]
+    max_allowed_gap : int
+    reordered_indices: list[int]
+    
+    def __init__(
+        self,
+        seq_features: list[SeqFeature] = None,
+        seq_locations: list[SimpleLocation] = None,
+        seq_labels: list[str] = None,
+        max_allowed_gap: int = 10,
+        sorted_by_positive_strand_location: bool = False,
+        sorted: bool = False
+    ) -> None:
+        
+        if (
+            seq_labels is not None and
+            seq_features is None and seq_locations is None
+        ):
+            seq_features = [label_to_feature(label) for label in seq_labels]
+        
+        if seq_features is not None and seq_locations is None:
+            seq_locations = [
+                feature.location for feature in seq_features]
+            
+        self.max_allowed_gap = max_allowed_gap
+
+        if seq_locations is None:
+            raise Exception('Sequence location information is not available')
+
+        if seq_features is None:
+            seq_features = [
+                location_to_feature(location)
+                for location in seq_locations
+        ]
+
+        if not sorted:
+            if sorted_by_positive_strand_location:
+                print(f'Reorder negative strand')
+                indexed_locations = list(enumerate(self.seq_locations))
+                positive_location_indices = [
+                    indexed_location[0] for indexed_location in indexed_locations
+                    if indexed_location[1].strand is None or indexed_location[1].strand == 1
+                ]
+                negative_location_indices = list(reversed([
+                    indexed_location[0] for indexed_location in indexed_locations
+                    if indexed_location[1].strand is not None and indexed_location[1].strand == -1
+                ]))
+                self.reordered_indices = positive_location_indices + negative_location_indices
+            else:
+                print(f'Reorder all')
+                self.reordered_indices = sorted_locations_indeces(seq_locations)
+            print(f'Indexes built, now reordering feature list...')
+            self.sorted_seq_features = order_by_indices(
+                seq_features,
+                self.reordered_indices
+            )
+            
+        sorted_seq_locations = [
+            seq_feature.location
+            for seq_feature in self.sorted_seq_features
+        ]
+
+        self.gap_indices = [
+            i + 1
+            for i in range(len(sorted_seq_locations) - 1)
+            if sorted_seq_locations[i + 1].ref != sorted_seq_locations[i].ref
+                or sorted_seq_locations[i + 1].strand != sorted_seq_locations[i].strand
+                or sorted_seq_locations[i + 1].start - sorted_seq_locations[i].end > self.max_allowed_gap
+        ]
+
