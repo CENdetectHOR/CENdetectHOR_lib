@@ -2,9 +2,13 @@ from dataclasses import dataclass
 import json
 import numpy as np
 from sklearn.cluster import AgglomerativeClustering
+from sklearn.utils.validation import check_is_fitted
+from matrix_utils import build_sparse_matrix
 from treeFromClusters import feature_to_leave, new_clade, new_phylogeny
 from Bio.SeqFeature import SeqFeature
+from Bio.SeqRecord import SeqRecord
 from Bio.Phylo.PhyloXML import Clade, Phylogeny, Sequence, Phyloxml
+from featureUtils import feature_to_seq
 
 class SimplePhylogeny:
     num_leaves: int
@@ -42,6 +46,21 @@ class SimplePhylogeny:
                 for subclade_index in self.get_clade_children(clade_index)
             ])
         )
+        
+    def get_leaves_in_order(
+        self, clade_index: int = None
+    ) -> list[int]:
+        if clade_index is None:
+            clade_index = self.root_clade_index
+        subclades = self.get_clade_children(clade_index)
+        if len(subclades) == 0:
+            return [clade_index]
+        else:
+            return [
+                leave
+                for subclade in subclades
+                for leave in self.get_leaves_in_order(subclade)
+            ]
 
 class SimplePhylogenyWithDistances(SimplePhylogeny):
     max_distances: list[int]
@@ -53,12 +72,17 @@ class SimplePhylogenyWithDistances(SimplePhylogeny):
         max_distances: list[int]
     ):
         super().__init__(num_leaves=num_leaves, children=children)
+        if max_distances is None:
+            max_distances = [
+                self.get_clade_height(num_leaves + internal_clade_index)
+                for internal_clade_index in enumerate(children)
+            ]
         self.max_distances = max_distances
     
     def get_clade_distance(self, clade_index: int):
         return (
             0 if clade_index < self.num_leaves
-            else self.max_distances[clade_index - self.num_leaves]
+            else (self.max_distances[clade_index - self.num_leaves])
         )
     
 class SimplePhylogenyWithBranchLengths(SimplePhylogeny):
@@ -76,7 +100,7 @@ class SimplePhylogenyWithBranchLengths(SimplePhylogeny):
     def get_branch_length(self, clade_index: int):
         return self.branch_lengths[clade_index]
     
-def save_phylogeny(
+def save_phylogeny_with_branch_lengths(
     phylogeny: SimplePhylogenyWithBranchLengths,
     filename: str
 ):
@@ -87,7 +111,18 @@ def save_phylogeny(
             'branch_lengths': phylogeny.branch_lengths
         }, f)
         
-def load_phylogeny(
+def save_phylogeny_with_distances(
+    phylogeny: SimplePhylogenyWithDistances,
+    filename: str
+):
+    with open(filename + '.json', 'w') as f:
+        json.dump({
+            'num_leaves': phylogeny.num_leaves,
+            'children': phylogeny.children,
+            'max_distances': phylogeny.max_distances
+        }, f)
+        
+def load_phylogeny_with_branch_lengths(
     filename: str
 ) -> SimplePhylogenyWithBranchLengths:
     with open(filename + '.json') as f:
@@ -98,17 +133,28 @@ def load_phylogeny(
             branch_lengths=dict['branch_lengths']
         )
         
+def load_phylogeny_with_distances(
+    filename: str
+) -> SimplePhylogenyWithDistances:
+    with open(filename + '.json') as f:
+        dict = json.load(f)
+        return SimplePhylogenyWithDistances(
+            num_leaves=dict['num_leaves'],
+            children=dict['children'],
+            max_distances=dict['max_distances']
+        )
+        
 def compact_phylogeny(
     input_phylogeny: SimplePhylogenyWithDistances
-) -> SimplePhylogenyWithBranchLengths:
-    def clades_to_descendants_at_distance(clade_indeces: list[int], distance: int) -> list[Clade]:
+) -> SimplePhylogenyWithDistances:
+    def clades_to_descendants_at_distance(clade_indeces: list[int], distance: int) -> list[int]:
         return [
             descendant_clade
             for child_clade_index in clade_indeces
             for descendant_clade in clade_to_descendants_at_distance(child_clade_index, distance)
         ]
 
-    def clade_to_descendants_at_distance(clade_index: int, distance: int) -> list[Clade]:
+    def clade_to_descendants_at_distance(clade_index: int, distance: int) -> list[int]:
         if input_phylogeny.get_clade_distance(clade_index) < distance:
             return [clade_index]
         descendant_clades_at_distance = clades_to_descendants_at_distance(
@@ -163,52 +209,24 @@ def distances_to_branch_lengths(
         branch_lengths=branch_lengths
     )
     
-def hierarchical_clustering(
-    dist_matrix: np.ndarray,
-    sort: bool = True
-) -> SimplePhylogeny:
-    clustering = AgglomerativeClustering(
-        metric='precomputed',
-        compute_full_tree=True,
-        linkage='single',
-        compute_distances = True,
-        n_clusters=1)
-
-    clustering.fit(dist_matrix)
-    
-    phylogeny = distances_to_branch_lengths(
-        compact_phylogeny(
-            SimplePhylogenyWithDistances(
-                num_leaves=int(dist_matrix.shape[0]),
-                children=[[int(subclade) for subclade in subclades] for subclades in clustering.children_],
-                max_distances=clustering.distances_
-            )
-        )
-    )
-    
-    if sort:
-        sort_by_leaf_indexes(phylogeny)
-        
-    return phylogeny
-
 
 def build_phylogeny(
     simple_phylogeny: SimplePhylogenyWithBranchLengths,
-    features: list[SeqFeature]
+    items_as_seq_features: list[SeqFeature]
 ) -> Phylogeny:
     
     def build_clade(clade_index: int):
         subclade_indices = simple_phylogeny.get_clade_children(clade_index)
         branch_length = simple_phylogeny.get_branch_length(clade_index)
         if len(subclade_indices) == 0:
-            return feature_to_leave(features[clade_index], branch_length=branch_length)
+            return feature_to_leave(items_as_seq_features[clade_index], branch_length=branch_length)
         subclades = [build_clade(subclade_index) for subclade_index in subclade_indices]
         return Clade(clades=subclades, branch_length=branch_length)
         
     root_clade = build_clade(simple_phylogeny.root_clade_index)
-    philogeny = new_phylogeny(root_clade)
+    phylogeny = new_phylogeny(root_clade)
 
-    return philogeny
+    return phylogeny
 
 @dataclass
 class CladeSortResult:
@@ -273,156 +291,82 @@ def get_clades_by_level(
     extract_clades_by_height(phylogeny.root_clade_index)
     return clades_by_level, children_num_by_level
 
-def matrix_sparsity(matrix: np.ndarray) -> float:
-    return 1.0 - np.count_nonzero(matrix) / matrix.size
-
 @dataclass
-class ClusteringMatricesResult:
-    clustering_matrices: list[np.ndarray]
-    clades_by_level: list[list[int]]
+class ClusteringToPhylogenyResult:
+    phylogeny: Phylogeny
+    item_position_to_leaf_index: list[int]
 
-def get_clustering_matrices(phylogeny: SimplePhylogeny) -> ClusteringMatricesResult:
-    clades_by_level, children_num_by_height = get_clades_by_level(phylogeny)
-    print(f"Computing clustering matrices for {len(clades_by_level)} levels...")
+def clustering_to_phylogeny(
+    clustering: AgglomerativeClustering = None,
+    items_vs_feature_array = None,
+    items_as_seq_records: list[SeqRecord] = None,
+    items_as_seq_features: list[SeqFeature] = None,
+    seq_references: dict[SeqRecord] = None,
+    dist_matrix: np.ndarray = None,
+    compute_distances: bool = True,
+    linkage='single',
+    metric='euclidean',
+    sort: bool = True
+) -> ClusteringToPhylogenyResult:
+    
+    if clustering is None:
+        clustering = AgglomerativeClustering(
+            metric=metric if dist_matrix is None else 'precomputed',
+            compute_full_tree=True,
+            linkage=linkage,
+            compute_distances = compute_distances,
+            n_clusters=1)
 
-    def get_clustering_matrix_for_level(level: int) -> np.ndarray:
-        print(f"Computing clustering matrix for level {level}...")
-        subclade_start_indexes = np.array(
-            [0] +
-            [
-                children_num
-                for children_num in children_num_by_height[level]]
-        ).cumsum()
-        return np.array([
-            [
-                subclade_index >= subclade_start_indexes[clade_index] and
-                subclade_index < subclade_start_indexes[clade_index + 1]
-                for subclade_index in range(subclade_start_indexes[-1])
-            ]
-            for clade_index in range(len(children_num_by_height[level]))
-        ])        
-        
-    leaf_confusion_matrix = np.array([
-        [
-            original_leaf_index == clades_by_level[0][leaf_index]
-            for original_leaf_index in range(phylogeny.num_leaves)
+
+    if (items_as_seq_features is not None and
+        seq_references is not None and
+        items_as_seq_records is None
+    ):
+        items_as_seq_records = [
+            feature_to_seq(seq_feature, references=seq_references)
+            for seq_feature in items_as_seq_features
         ]
-        for leaf_index in range(phylogeny.num_leaves)
-    ])
+    
+    if not hasattr(clustering, 'children_'):
+        
+        if dist_matrix is not None:
+            clustering.fit(dist_matrix)
+        else:
+            if (items_as_seq_records is not None and 
+                items_vs_feature_array is None
+            ):
+                items_vs_feature_array = [
+                    str(seq.seq) for seq in items_as_seq_records
+                ]
+            if items_vs_feature_array is not None:
+                clustering.fit(items_vs_feature_array)
+            else:
+                raise Exception('No data available to perform clustering')
+    
+    aggregation_result = SimplePhylogenyWithDistances(
+        num_leaves=int(dist_matrix.shape[0]),
+        children=[[int(subclade) for subclade in subclades] for subclades in clustering.children_],
+        max_distances=[int(distance) for distance in clustering.distances_] if hasattr(clustering, 'distances_') else None
+    )
 
-    return ClusteringMatricesResult(
-        clustering_matrices = [leaf_confusion_matrix] + [
-            get_clustering_matrix_for_level(level)
-            for level in range(1, len(children_num_by_height))
-        ],
-        clades_by_level = clades_by_level
+    print(f"Initial aggregation with {aggregation_result.num_clades} clades")
+    
+    compacted_result = compact_phylogeny(aggregation_result)
+    
+    print(f"Compacted aggregation to {compacted_result.num_clades} clades")
+
+    simple_phylogeny = distances_to_branch_lengths(compacted_result)
+    
+    if sort:
+        sort_by_leaf_indexes(simple_phylogeny)
+        
+    phylogeny = build_phylogeny(
+        simple_phylogeny,
+        items_as_seq_features = items_as_seq_features
     )
     
-@dataclass
-class MatricesResult:
-    clustering_matrices: list[np.ndarray]
-    expansion_matrices: list[np.ndarray]
-    clades_by_level: list[list[int]]
-
-def get_matrices(phylogeny: SimplePhylogeny) -> MatricesResult:
-    res = get_clustering_matrices(phylogeny)
-    clustering_matrices = res.clustering_matrices
-    expansion_matrices = [clustering_matrices[0]]
-    num_levels = len(clustering_matrices)
-    print(f"Computing expansion matrices for {num_levels} levels...")
-    for level in range(1, num_levels):
-        print(f"Computing expansion matrix for level {level}...")
-        expansion_matrices.append(clustering_matrices[level] @ expansion_matrices[level - 1])
-    return MatricesResult(
-        clustering_matrices=clustering_matrices,
-        expansion_matrices=expansion_matrices,
-        clades_by_level=res.clades_by_level
+    return ClusteringToPhylogenyResult(
+        phylogeny=phylogeny,
+        item_position_to_leaf_index=simple_phylogeny.get_leaves_in_order()
     )
-    
-def save_matrix(
-    matrix: np.ndarray,
-    filename: str,
-    closure_sparsity_threshold: float = 0.97
-):
-    if matrix_sparsity(matrix) > closure_sparsity_threshold:
-        save_npz(filename, )
-
-def save_clustering_matrices(
-    matrices_result: ClusteringMatricesResult,
-    base_dir: str = '',
-    clustering_matrices_template: str = 'clustering_{level}',
-    clades_by_level_template: str = 'clades_{level}',
-    closure_sparsity_threshold: float = 0.97
-):
-    clustering_matrices_template = base_dir + clustering_matrices_template
-    clades_by_level_template = base_dir + clades_by_level_template
-    num_levels = len(matrices_result.clustering_matrices)
-    for level in range(num_levels):
-        with open(clustering_matrices_template.format(level=level) + '.npy', 'wb') as f:
-            np.save(f, matrices_result.clustering_matrices[level])
-        with open(clades_by_level_template.format(level=level) + '.csv', 'w') as f:
-            f.write('\n'.join([str(clade) for clade in matrices_result.clades_by_level[level]]))
-
-
-
-def save_matrices(
-    matrices_result: MatricesResult,
-    base_dir: str = '',
-    clustering_matrices_template: str = 'clustering_{level}',
-    expansion_matrices_template: str = 'expansion_{level}',
-    clades_by_level_template: str = 'clades_{level}',
-    closure_sparsity_threshold: float = 0.97
-):
-    clustering_matrices_template = base_dir + clustering_matrices_template
-    expansion_matrices_template = base_dir + expansion_matrices_template
-    clades_by_level_template = base_dir + clades_by_level_template
-    num_levels = len(matrices_result.clustering_matrices)
-    for level in range(num_levels):
-        with open(clustering_matrices_template.format(level=level) + '.npy', 'wb') as f:
-            np.save(f, matrices_result.clustering_matrices[level])
-        with open(expansion_matrices_template.format(level=level) + '.npy', 'wb') as f:
-            np.save(f, matrices_result.expansion_matrices[level])
-        with open(clades_by_level_template.format(level=level) + '.csv', 'w') as f:
-            f.write('\n'.join([str(clade) for clade in matrices_result.clades_by_level[level]]))
-
-def load_matrices(
-    base_dir: str = '',
-    clustering_matrices_template: str = 'clustering_{level}',
-    expansion_matrices_template: str = 'expansion_{level}',
-    clades_by_level_template: str = 'clades_{level}'
-) -> MatricesResult:
-    clustering_matrices_template = base_dir + clustering_matrices_template
-    expansion_matrices_template = base_dir + expansion_matrices_template
-    clades_by_level_template = base_dir + clades_by_level_template
-    
-    clustering_matrices = []
-    expansion_matrices = []
-    clades_by_level = []
-    
-    level = 0
-    try:
-        while(True):
-            clustering_matrices.append(
-                np.load(
-                    clustering_matrices_template.format(level=level) + '.npy'
-                )
-            )
-            expansion_matrices.append(
-                np.load(
-                    expansion_matrices_template.format(level=level) + '.npy'
-                )
-            )
-            with open(
-                clades_by_level_template.format(level=level) + '.csv'
-            ) as f:
-                clades_by_level.append(
-                    [int(line.rstrip()) for line in f]
-                )
-            level = level + 1
-    except IOError:
-        return MatricesResult(
-            clustering_matrices=clustering_matrices,
-            expansion_matrices=expansion_matrices,
-            clades_by_level=clades_by_level
-        )
 
