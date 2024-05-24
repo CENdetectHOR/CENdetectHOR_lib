@@ -2,12 +2,10 @@ from dataclasses import dataclass
 import json
 import numpy as np
 from sklearn.cluster import AgglomerativeClustering
-from sklearn.utils.validation import check_is_fitted
-from matrix_utils import build_sparse_matrix
-from treeFromClusters import feature_to_leave, new_clade, new_phylogeny
+from treeFromClusters import feature_to_leave, new_phylogeny
 from Bio.SeqFeature import SeqFeature
 from Bio.SeqRecord import SeqRecord
-from Bio.Phylo.PhyloXML import Clade, Phylogeny, Sequence, Phyloxml
+from Bio.Phylo.PhyloXML import Clade, Phylogeny
 from featureUtils import feature_to_seq
 
 class SimplePhylogeny:
@@ -349,12 +347,7 @@ def clustering_to_phylogeny(
         max_distances=[int(distance) for distance in clustering.distances_] if hasattr(clustering, 'distances_') else None
     )
 
-    print(f"Initial aggregation with {aggregation_result.num_clades} clades")
-    
     compacted_result = compact_phylogeny(aggregation_result)
-    
-    print(f"Compacted aggregation to {compacted_result.num_clades} clades")
-
     simple_phylogeny = distances_to_branch_lengths(compacted_result)
     
     if sort:
