@@ -139,7 +139,7 @@ class PhylogenyToLevelsResult:
 def phylogeny_to_levels(
     phylogeny: Tree,
     item_position_to_leaf_index: list[int] = None
-):
+) -> PhylogenyToLevelsResult:
     if item_position_to_leaf_index is None:
         item_position_to_leaf_index = SeqFeaturesByContiguity(
             seq_features=extract_features_from_leaves(phylogeny)
