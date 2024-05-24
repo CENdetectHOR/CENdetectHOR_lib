@@ -169,7 +169,6 @@ class SeqFeaturesByContiguity:
 
         if not sorted:
             if sorted_by_positive_strand_location:
-                print(f'Reorder negative strand')
                 indexed_locations = list(enumerate(self.seq_locations))
                 positive_location_indices = [
                     indexed_location[0] for indexed_location in indexed_locations
@@ -181,9 +180,7 @@ class SeqFeaturesByContiguity:
                 ]))
                 self.reordered_indices = positive_location_indices + negative_location_indices
             else:
-                print(f'Reorder all')
                 self.reordered_indices = sorted_locations_indeces(seq_locations)
-            print(f'Indexes built, now reordering feature list...')
             self.sorted_seq_features = order_by_indices(
                 seq_features,
                 self.reordered_indices
