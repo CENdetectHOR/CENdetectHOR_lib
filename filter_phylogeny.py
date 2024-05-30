@@ -14,9 +14,10 @@ def sequences_from_chromosome(chromosome_label: str) -> Callable[[Sequence], boo
             
 def filter_phylogeny(
     phylogeny: Tree,
-    select_fun: Callable[[Clade], bool]
+    select_fun: Callable[[Clade], bool],
+    clade_merges: dict[str, str] = None
 ) -> Tree:
-    
+
     def filter_clade(clade: Clade) -> Clade:
         if len(clade.clades) == 0:
             if select_fun(clade):
@@ -36,6 +37,15 @@ def filter_phylogeny(
             return None
         if len(new_subclades) == 1:
             new_subclades[0].branch_length += clade.branch_length
+            if clade.name is not None:
+                if (
+                    new_subclades[0].name is not None and
+                    len(new_subclades[0].clades) > 0
+                ):
+                    print(f"Clade label clash collapsing parent {clade.name} and child {new_subclades[0].name}")
+                    if clade_merges is not None:
+                        clade_merges[new_subclades[0].name] = clade.name
+                new_subclades[0].name = clade.name
             return new_subclades[0]
         new_clade = copy(clade)
         new_clade.clades = new_subclades
@@ -61,24 +71,37 @@ def filter_phylogeny(
             
 def filter_phylogeny_by_chromosome(
     phylogeny: Tree,
-    chromosome_label: str
+    chromosome_label: str,
+    clade_merges: dict[str, str] = None
 ) -> Tree:
     return filter_phylogeny(
         phylogeny=phylogeny,
         select_fun=lambda leaf: any([
             seq_to_chrom(seq) == chromosome_label
             for seq in leaf.sequences
-        ])
+        ]),
+        clade_merges=clade_merges
     )
     
 def split_phylogeny_by_chromosome(
     phylogeny: Tree
-) -> dict[str, Tree]:
+) -> dict[str, tuple[Tree, dict[str, str]]]:
     chromosome_labels = set([
         seq_to_chrom(seq)
         for leaf in phylogeny.get_terminals()
         for seq in leaf.sequences
     ])
+    # phylogeny_by_chromosome : dict[str, tuple[Tree, dict[str, str]]]= {}
+    # for chromosome_label in chromosome_labels:
+    #     clade_merges = {}
+    #     filtered_phylogeny = filter_phylogeny_by_chromosome(
+    #         phylogeny=phylogeny,
+    #         chromosome_label=chromosome_label,
+    #         clade_merges=clade_merges
+    #     )
+    #     phylogeny_by_chromosome[chromosome_label] = [filtered_phylogeny, clade_merges]
+        
+    # return phylogeny_by_chromosome
     return {
         chromosome_label: filter_phylogeny_by_chromosome(
             phylogeny=phylogeny,
