@@ -140,8 +140,8 @@ def coverage_diff(
         for loop_b in loops_b
         if any([
             all([
-                span_a.span_start > span_b.span_start or span_a.span_start +
-                span_a.span_length < span_b.span_start + span_b.span_length
+                span_a.span_start > span_b.span_start or
+                span_a.span_start + span_a.span_length < span_b.span_start + span_b.span_length
                 for span_a in coverage_a
             ])
             for span_b in loop_b.spans_in_seq
