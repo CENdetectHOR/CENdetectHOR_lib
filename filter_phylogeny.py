@@ -1,8 +1,8 @@
 from typing import Callable
 from Bio.Phylo import PhyloXML
-from Bio.Phylo.PhyloXML import Sequence, Phylogeny
+from Bio.Phylo.PhyloXML import Sequence, Phylogeny, Property
 from Bio.Phylo.BaseTree import Tree, Clade
-from copy import deepcopy, copy
+from copy import copy
 
 
 def seq_to_chrom(seq: Sequence) -> str:
@@ -59,16 +59,6 @@ def filter_phylogeny(
     new_phylogeny.root = new_root
     return new_phylogeny
             
-# def filter_phylogeny(
-#     phylogeny: Tree,
-#     select_fun: Callable[[Clade], bool]
-# ) -> Tree:
-#     phylogeny = deepcopy(phylogeny)
-#     for leaf in phylogeny.get_terminals():
-#         if not select_fun(leaf):
-#             phylogeny.prune(leaf)
-#     return phylogeny
-            
 def filter_phylogeny_by_chromosome(
     phylogeny: Tree,
     chromosome_label: str,
@@ -91,17 +81,6 @@ def split_phylogeny_by_chromosome(
         for leaf in phylogeny.get_terminals()
         for seq in leaf.sequences
     ])
-    # phylogeny_by_chromosome : dict[str, tuple[Tree, dict[str, str]]]= {}
-    # for chromosome_label in chromosome_labels:
-    #     clade_merges = {}
-    #     filtered_phylogeny = filter_phylogeny_by_chromosome(
-    #         phylogeny=phylogeny,
-    #         chromosome_label=chromosome_label,
-    #         clade_merges=clade_merges
-    #     )
-    #     phylogeny_by_chromosome[chromosome_label] = [filtered_phylogeny, clade_merges]
-        
-    # return phylogeny_by_chromosome
     return {
         chromosome_label: filter_phylogeny_by_chromosome(
             phylogeny=phylogeny,
@@ -111,7 +90,8 @@ def split_phylogeny_by_chromosome(
 
 def filter_hor_clade(
     hor_clade: PhyloXML.Clade,
-    select_fun: Callable[[Sequence], bool]
+    select_fun: Callable[[Sequence], bool],
+    map_prop_fun: Callable[[Property], Property] 
 ) -> PhyloXML.Clade:
     filtered_seqs = [seq for seq in hor_clade.sequences if select_fun(seq)]
     if len(filtered_seqs) == 0:
@@ -126,33 +106,49 @@ def filter_hor_clade(
     new_hor_clade = copy(hor_clade)
     new_hor_clade.sequences = filtered_seqs
     new_hor_clade.clades = filtered_subhors
+    new_hor_clade.properties = map(map_prop_fun, new_hor_clade.properties)
     return new_hor_clade
             
 def filter_hor_tree(
     hor_tree: Phylogeny,
-    select_fun: Callable[[Sequence], bool]
+    select_fun: Callable[[Sequence], bool],
+    map_prop_fun: Callable[[Property], Property] 
 ) -> Phylogeny:
-    new_hor_tree = copy(hor_tree)
-    new_hor_tree.root = filter_hor_clade(
-        hor_clade=hor_tree.root,
-        select_fun=select_fun
+
+    def filter_hor_clade(hor_clade: PhyloXML.Clade) -> PhyloXML.Clade:
+        filtered_seqs = [seq for seq in hor_clade.sequences if select_fun(seq)]
+        if len(filtered_seqs) == 0:
+            return None
+        filtered_subhors = filter(
+            lambda s: s is not None,
+            [
+                filter_hor_clade(subhor)
+                for subhor in hor_clade.clades
+            ]
+        )
+        new_hor_clade = copy(hor_clade)
+        new_hor_clade.sequences = filtered_seqs
+        new_hor_clade.clades = filtered_subhors
+        new_hor_clade.properties = [
+            map_prop_fun(property)
+            for property in new_hor_clade.properties
+        ]
+        return new_hor_clade
+
+    return Phylogeny(
+        name=hor_tree.name,
+        root=filter_hor_clade(hor_clade=hor_tree.root)
     )
-    return new_hor_tree
-    # return Phylogeny(
-    #     name=hor_tree.name,
-    #     root=filter_hor_clade(
-    #         hor_clade=hor_tree.root,
-    #         select_fun=select_fun
-    #     )
-    # )
             
 def filter_hor_tree_by_chromosome(
     hor_tree: Phylogeny,
-    chromosome_label: str
+    chromosome_label: str,
+    map_prop_fun: Callable[[Property], Property] 
 ) -> Phylogeny:
     return filter_hor_tree(
         hor_tree=hor_tree,
-        select_fun=lambda seq: seq_to_chrom(seq) == chromosome_label
+        select_fun=lambda seq: seq_to_chrom(seq) == chromosome_label,
+        map_prop_fun=map_prop_fun
     )
     
 def split_hor_tree_by_chromosome(
@@ -168,58 +164,6 @@ def split_hor_tree_by_chromosome(
             chromosome_label=chromosome_label
         ) for chromosome_label in chromosome_labels
     }
-    
-def rename_families_in_hors(
-    hor_tree: Phylogeny,
-    family_merges: dict[str, str]
-) -> None:
-    print(hor_tree)
-    hors = hor_tree.get_terminals() + hor_tree.get_nonterminals()
-    for hor in hors:
-        print(hor)
-        for property in hor.properties:
-            print(property)
-            if property.ref == 'monomer_clade_seq':
-                print(f"property.value before: {property.value}")
-                property.value = ','.join([
-                    (
-                        family_merges[clade_label]
-                        if clade_label in family_merges
-                        else clade_label
-                    )
-                    for clade_label in property.value.split(',')
-                ]) 
-                print(f"property.value after: {property.value}")
-
-# def split_phyloxml_by_chromosomes(
-#     phyloxml: PhyloXML.Phyloxml
-# ) -> dict[str, PhyloXML.Phyloxml]:
-#     phylogeny_lists_by_chromosome : dict[str,list[Phylogeny]] = {}
-    
-#     def add_phylogenies(phylogenies_by_chromosome : dict[str, Phylogeny]):
-#         for chromosome, phylogeny in phylogenies_by_chromosome.items():
-#             if chromosome not in phylogeny_lists_by_chromosome:
-#                 phylogeny_lists_by_chromosome[chromosome] = []
-#             phylogeny_lists_by_chromosome[chromosome].append(phylogeny)
-    
-#     try:
-#         add_phylogenies(split_phylogeny_by_chromosome(phyloxml['monomers']))
-#     except KeyError:
-#         pass
-    
-#     try:
-#         add_phylogenies(split_hor_tree_by_chromosome(phyloxml['hors']))
-#     except KeyError:
-#         pass
-    
-#     return {
-#         chromosome: PhyloXML.Phyloxml(
-#             attributes=phyloxml.attributes,
-#             phylogenies=phylogenies,
-#             other=phyloxml.other
-#         )
-#         for chromosome, phylogenies in phylogeny_lists_by_chromosome.items()
-#     }
     
 def filter_phyloxml_by_chromosome(
     phyloxml: PhyloXML.Phyloxml,
@@ -237,18 +181,26 @@ def filter_phyloxml_by_chromosome(
     except KeyError:
         pass
     
-    # print(clade_merges)
+    def rename_families(property: Property):
+        if property.ref == 'monomer_clade_seq':
+            property = copy(property)
+            property.value = ','.join([
+                (
+                    clade_merges[clade_label]
+                    if clade_label in clade_merges
+                    else clade_label
+                )
+                for clade_label in property.value.split(',')
+            ]) 
+        return property
+
     
     try:
         new_hor_tree = filter_hor_tree_by_chromosome(
             hor_tree=phyloxml['hors'],
-            chromosome_label=chromosome_label
+            chromosome_label=chromosome_label,
+            map_prop_fun=rename_families
         )
-        # print(new_hor_tree)
-        # rename_families_in_hors(
-        #     hor_tree=new_hor_tree,
-        #     family_merges=clade_merges
-        # )
         new_phylogenies.append(new_hor_tree)
     except KeyError:
         pass
