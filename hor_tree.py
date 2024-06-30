@@ -2,6 +2,7 @@ from Bio.Phylo.BaseTree import Tree, Clade
 from Bio.SeqFeature import SeqFeature
 from featureUtils import SeqFeaturesByContiguity
 from hor import HORInSeq, loop_to_HOR, name_hor_tree
+from hor_coherence import checkLoopInSeqSelfOverlap, checkSpanListSelfOverlap
 from loops import find_loops, loop_to_spans
 from phylogeny_to_levels import extract_features_from_leaves, phylogeny_to_levels
 
@@ -23,8 +24,18 @@ def levels_to_hor_tree(
         level: int,
         curr_loop_diversity: int
     ):
+        # print(f"Level: {level}")
         if level == 0:
             return []
+        # checkSpanListSelfOverlap(
+        #     spanList=spans_to_search,
+        #     foundOverlapTemplate=(
+        #         f"In level {level}, " +
+        #         "found overlap in searching spans between {span1} and {span2}"
+        #     )
+        # )
+        # print(f"Labelled items: {labelled_items_by_level[level]}")
+        # print(f"Spans to search: {spans_to_search}")
         loops_in_seq = find_loops(
             whole_seq=labelled_items_by_level[level],
             seq_spans=spans_to_search,
@@ -34,6 +45,15 @@ def levels_to_hor_tree(
             allowed_mismatch_rate=allowed_mismatch_rate,
             allow_overlap=allow_hor_overlap
         )
+        # print(f"Loops found: {[str(loop_in_seq) for loop_in_seq in loops_in_seq]}")
+        # for loop_in_seq_index, loop_in_seq in enumerate(loops_in_seq):
+        #     checkLoopInSeqSelfOverlap(
+        #         loopInSeq=loop_in_seq,
+        #         foundOverlapTemplate=(
+        #             f"In level {level}, loop n. {loop_in_seq_index}, " +
+        #             "found overlap between {loopSpanInSeq1} and {loopSpanInSeq2}"
+        #         )
+        #     )
         if (len(loops_in_seq) == 0):
             return []
         

@@ -74,88 +74,60 @@ class LoopInSeq:
         )
         
 def loop_to_spans(loop_in_seq: LoopInSeq) -> list[tuple[int,int]]:
-    return [
-        (
-            loop_span.span_start,
-            loop_span.span_start + loop_span.span_length)
-        for loop_span in loop_in_seq.spans_in_seq
-    ]       
+    spans: list[tuple[int,int]] = []
+    for loop_span in loop_in_seq.spans_in_seq:
+        loop_span_end = loop_span.span_start + loop_span.span_length
+        if len(spans) > 0 and loop_span.span_start <= spans[-1][1]:
+            if loop_span_end > spans[-1][1]:
+                spans.append((spans[-1][1], loop_span_end))
+        else:
+            spans.append((loop_span.span_start, loop_span_end))
+    return spans
 
-def extract_span_in_seq(
-    span_in_seq: LoopSpanInSeq,
-    start_pos: int,
-    end_pos: int,
-    loop_size: int
-) -> LoopSpanInSeq:
-    span_in_seq_end = span_in_seq.span_start + span_in_seq.span_length
-    if (start_pos < span_in_seq_end):
-        if (end_pos <= span_in_seq.span_start):
-            return None
-        new_span_start = max(span_in_seq.span_start, start_pos)
-        new_span_end = min(span_in_seq_end, end_pos)
-        new_span_length = new_span_end - new_span_start
-        new_in_loop_start = (
-            (span_in_seq.in_loop_start + new_span_start - span_in_seq.span_start) % loop_size
-        )
-        return LoopSpanInSeq(
-            span_start=new_span_start,
-            span_length=new_span_length,
-            num_of_laps=new_span_length // loop_size,
-            in_loop_start=new_in_loop_start,
-            num_mismatches=span_in_seq.num_mismatches
-        )
-    else:
-        None
-        
-def extract_spans_in_seqs_simple(
-    spans_in_seq: list[LoopSpanInSeq],
-    spans_to_extract: list[tuple[int,int]],
-    loop_size: int
-) -> list[LoopSpanInSeq]:
-    new_spans_in_seq: list[LoopSpanInSeq] = []
-    for span_in_seq in spans_in_seq:
-        for start_pos, end_pos in spans_to_extract:
-            new_span_in_seq = extract_span_in_seq(
-                span_in_seq=span_in_seq,
-                start_pos=start_pos,
-                end_pos=end_pos,
-                loop_size=loop_size
-            )
-            if new_span_in_seq is not None:
-                new_spans_in_seq.append(new_span_in_seq)
-    return new_spans_in_seq
-        
 def extract_spans_in_seqs(
     spans_in_seq: list[LoopSpanInSeq],
     spans_to_extract: list[tuple[int,int]],
     loop_size: int
 ) -> list[LoopSpanInSeq]:
     new_spans_in_seq: list[LoopSpanInSeq] = []
-    next_span_to_extract_index = 0
+    span_to_extract_index = 0
     for span_in_seq in spans_in_seq:
         span_in_seq_end = span_in_seq.span_start + span_in_seq.span_length
-        for span_to_extract_index_offset, span_boundaries in enumerate(spans_to_extract[next_span_to_extract_index:]):
-            start_pos, end_pos = span_boundaries
-            if (start_pos < span_in_seq_end and end_pos > span_in_seq.span_start):
-                new_span_start = max(span_in_seq.span_start, start_pos)
-                new_span_end = min(span_in_seq_end, end_pos)
-                if new_span_start < new_span_end:
-                    new_span_length = new_span_end - new_span_start
-                    new_in_loop_start = (
-                        (span_in_seq.in_loop_start + new_span_start - span_in_seq.span_start) % loop_size
+        while span_to_extract_index < len(spans_to_extract):
+            span_to_extract_start, span_to_extract_end = spans_to_extract[span_to_extract_index]
+            if (span_to_extract_start < span_in_seq_end and span_to_extract_end > span_in_seq.span_start):
+                new_span_start = max(span_in_seq.span_start, span_to_extract_start)
+                new_span_end = min(span_in_seq_end, span_to_extract_end)
+                new_span_length = new_span_end - new_span_start
+                new_in_loop_start = (
+                    (span_in_seq.in_loop_start + new_span_start - span_in_seq.span_start) % loop_size
+                )
+                new_spans_in_seq.append(LoopSpanInSeq(
+                    span_start=new_span_start,
+                    span_length=new_span_length,
+                    num_of_laps=new_span_length // loop_size,
+                    in_loop_start=new_in_loop_start,
+                    num_mismatches=span_in_seq.num_mismatches
+                ))
+            if span_to_extract_start < span_in_seq.span_start:
+                spans_to_extract.insert(
+                    span_to_extract_index,
+                    (
+                        span_to_extract_start,
+                        min(span_to_extract_end, span_in_seq.span_start)
                     )
-                    new_spans_in_seq.append(LoopSpanInSeq(
-                        span_start=new_span_start,
-                        span_length=new_span_length,
-                        num_of_laps=new_span_length // loop_size,
-                        in_loop_start=new_in_loop_start,
-                        num_mismatches=span_in_seq.num_mismatches
-                    ))
-            if (end_pos > span_in_seq_end):
-                next_span_to_extract_index += span_to_extract_index_offset
+                )
+                span_to_extract_index += 1
+            if (span_to_extract_end > span_in_seq_end):
+                spans_to_extract[span_to_extract_index] = (
+                    max(span_in_seq_end, span_to_extract_start),
+                    span_to_extract_end
+                 )
                 break
+            else:
+                del spans_to_extract[span_to_extract_index]
     return new_spans_in_seq
-        
+
 def intersect_spans(
     spans_a: list[tuple[int,int]],
     spans_b: list[tuple[int,int]]
@@ -307,10 +279,6 @@ def find_loops(
                     spans_in_seq=extracted_spans
                 )
                 filtered_loops.append(filtered_loop)
-                available_spans = spans_difference(
-                    available_spans,
-                    loop_to_spans(filtered_loop)
-                )
         loops = filtered_loops
 
     for loop in loops:

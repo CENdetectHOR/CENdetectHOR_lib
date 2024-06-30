@@ -30,6 +30,7 @@ def feature_to_seq(
 ) -> SeqRecord:
     seq = feature.extract(None, references=references)
     seq.id = feature.id
+    seq.description = ''
     return seq
 
 
