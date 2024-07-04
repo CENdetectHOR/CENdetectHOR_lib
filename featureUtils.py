@@ -199,4 +199,57 @@ class SeqFeaturesByContiguity:
                 or sorted_seq_locations[i + 1].strand != sorted_seq_locations[i].strand
                 or sorted_seq_locations[i + 1].start - sorted_seq_locations[i].end > self.max_allowed_gap
         ]
+        
+def feature_len(feature: SeqFeature) -> int:
+    return feature.location.end - feature.location.start   
 
+def remove_overlapping_features(
+    features: list[SeqFeature],
+    max_allowed_overlap: int = None,
+    max_allowed_overlap_fraction: float = None,
+    expected_feature_size: int = None,
+    keep_overlap_warning: bool = True,
+    remove_overlap_warning: bool = True
+) -> list[SeqFeature]:
+    if (
+        max_allowed_overlap is None and
+        max_allowed_overlap_fraction is not None and
+        expected_feature_size is not None
+    ):
+        max_allowed_overlap = expected_feature_size * max_allowed_overlap_fraction
+    if max_allowed_overlap is None and not keep_overlap_warning:
+        return
+    filtered_features: list[SeqFeature] = []
+    sorted_features = sorted(features, key=lambda ref: (ref.ref, ref.location.start))
+    for curr_feature in sorted_features:
+        prev_feature = filtered_features[-1] if len(filtered_features) > 0 else None
+        if prev_feature is not None and curr_feature.ref == prev_feature.ref and curr_feature.location.start < prev_feature.location.end:
+            if prev_feature.location.end - curr_feature.location.start > max_allowed_overlap:
+                keep_previous = (
+                    (
+                        expected_feature_size is None and
+                        feature_len(prev_feature) > feature_len(curr_feature)
+                    ) or (
+                        abs(feature_len(prev_feature) - expected_feature_size) <=
+                        abs(feature_len(curr_feature) - expected_feature_size)
+                    )
+                )
+                if not keep_previous:
+                    filtered_features[-1] = curr_feature
+                if remove_overlap_warning:
+                    print(
+                        f"Removed sequence feature {(curr_feature if keep_previous else prev_feature).location} " +
+                        f"overlapping ({prev_feature.location.end - curr_feature.location.start} bps) " +
+                        f"with sequence feature {(prev_feature if keep_previous else curr_feature).location}."
+                    )
+            else:
+                filtered_features.append(curr_feature)
+                if keep_overlap_warning:
+                    print(
+                        f"Kept sequence feature {curr_feature.location} " +
+                        f"overlapping ({prev_feature.location.end - curr_feature.location.start} bps) " +
+                        f"with sequence feature {prev_feature.location}."
+                    )
+        else:
+            filtered_features.append(curr_feature)
+    return filtered_features
