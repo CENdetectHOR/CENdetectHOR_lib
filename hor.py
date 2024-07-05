@@ -54,8 +54,8 @@ def seq_span_to_location(
     return SimpleLocation(
         ref=ref,
         strand=strand,
-        start=start_location.start if strand is None or strand == 1 else end_location.start,
-        end=end_location.end if strand is None or strand == 1 else start_location.end
+        start=min(start_location.start,end_location.start),
+        end=max(end_location.end,start_location.end)
     )
 
 def seq_spans_to_compound_location(

@@ -73,7 +73,10 @@ def extract_indices(indexed_list):
     return [indexed_item[0] for indexed_item in indexed_list]
 
 
-def sorted_locations_indeces(locations):
+def sorted_locations_indices(
+    locations,
+    independent_strands: bool = True
+):
     indexed_locations = list(enumerate([location for location in locations]))
     sorted_indices = []
     for curr_ref in sorted(set([location.ref for location in locations])):
@@ -90,12 +93,33 @@ def sorted_locations_indeces(locations):
 
         def get_start(indexed_location):
             return indexed_location[1].start
-        sorted_indices.extend(
-            extract_indices(
-                sorted(indexed_locations_by_strand(1), key=get_start))
-            + extract_indices(sorted(indexed_locations_by_strand(-1),
-                              key=get_start, reverse=True))
-        )
+        
+        if independent_strands:
+            sorted_indices.extend(
+                extract_indices(
+                    sorted(
+                        indexed_locations_by_strand(1),
+                        key=get_start
+                    )
+                ) +
+                extract_indices(
+                    sorted(
+                        indexed_locations_by_strand(-1),
+                        key=get_start,
+                        reverse=True
+                    )
+                )
+            )
+        else:
+            sorted_indices.extend(
+                extract_indices(
+                    sorted(
+                        curr_ref_indexed_locations,
+                        key=get_start
+                    )
+                )
+
+            )
     return sorted_indices
 
 
@@ -104,11 +128,11 @@ def order_by_indices(list_to_order, reordered_indeces):
 
 
 def sorted_locations(locations):
-    order_by_indices(locations, sorted_locations_indeces(locations))
+    order_by_indices(locations, sorted_locations_indices(locations))
 
 
 def sorted_features(features):
-    order_by_indices(features, sorted_locations_indeces(
+    order_by_indices(features, sorted_locations_indices(
         [feature.location for feature in features]))
 
 
@@ -136,6 +160,7 @@ class SeqFeaturesByContiguity:
     gap_indices: list[int]
     max_allowed_gap : int
     reordered_indices: list[int]
+    independent_strands: bool
     
     def __init__(
         self,
@@ -144,8 +169,11 @@ class SeqFeaturesByContiguity:
         seq_labels: list[str] = None,
         max_allowed_gap: int = 10,
         sorted_by_positive_strand_location: bool = False,
-        sorted: bool = False
+        sorted: bool = False,
+        independent_strands: bool = True
     ) -> None:
+        
+        self.independent_strands = independent_strands
         
         if (
             seq_labels is not None and
@@ -168,7 +196,7 @@ class SeqFeaturesByContiguity:
                 for location in seq_locations
         ]
 
-        if not sorted:
+        if not sorted and (independent_strands or not sorted_by_positive_strand_location):
             if sorted_by_positive_strand_location:
                 indexed_locations = list(enumerate(self.seq_locations))
                 positive_location_indices = [
@@ -181,7 +209,10 @@ class SeqFeaturesByContiguity:
                 ]))
                 self.reordered_indices = positive_location_indices + negative_location_indices
             else:
-                self.reordered_indices = sorted_locations_indeces(seq_locations)
+                self.reordered_indices = sorted_locations_indices(
+                    seq_locations,
+                    independent_strands=independent_strands
+                )
             self.sorted_seq_features = order_by_indices(
                 seq_features,
                 self.reordered_indices
@@ -196,7 +227,10 @@ class SeqFeaturesByContiguity:
             i + 1
             for i in range(len(sorted_seq_locations) - 1)
             if sorted_seq_locations[i + 1].ref != sorted_seq_locations[i].ref
-                or sorted_seq_locations[i + 1].strand != sorted_seq_locations[i].strand
+                or (
+                    independent_strands and
+                    sorted_seq_locations[i + 1].strand != sorted_seq_locations[i].strand
+                )
                 or sorted_seq_locations[i + 1].start - sorted_seq_locations[i].end > self.max_allowed_gap
         ]
         
