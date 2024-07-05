@@ -138,11 +138,13 @@ class PhylogenyToLevelsResult:
     
 def phylogeny_to_levels(
     phylogeny: Tree,
-    item_position_to_leaf_index: list[int] = None
+    item_position_to_leaf_index: list[int] = None,
+    max_allowed_gap: int = 10
 ) -> PhylogenyToLevelsResult:
     if item_position_to_leaf_index is None:
         item_position_to_leaf_index = SeqFeaturesByContiguity(
-            seq_features=extract_features_from_leaves(phylogeny)
+            seq_features=extract_features_from_leaves(phylogeny),
+            max_allowed_gap=max_allowed_gap
         ).reordered_indices
     clades_by_level_res = get_clades_by_level(phylogeny)
     clade_contraction_by_level = get_clade_contraction_by_level(
