@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from typing import Self
+from typing_extensions import Self
 from loops import LoopSpanInSeq, LoopInSeq
 from Bio.Phylo import BaseTree
 from Bio.Phylo.PhyloXML import Clade, Phylogeny, Sequence, Phyloxml, Property
