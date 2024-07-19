@@ -6,7 +6,7 @@ from treeFromClusters import feature_to_leave, new_phylogeny
 from Bio.SeqFeature import SeqFeature
 from Bio.SeqRecord import SeqRecord
 from Bio.Phylo.PhyloXML import Clade, Phylogeny
-from featureUtils import feature_to_seq
+from featureUtils import feature_to_seq, label_to_feature
 from assertions import assert_equal
 
 class SimplePhylogeny:
@@ -335,6 +335,15 @@ def clustering_to_phylogeny(
             for seq_feature in items_as_seq_features
         ]
     
+    if items_as_seq_features is None and items_as_seq_records is not None:
+        items_as_seq_features = [
+            label_to_feature(seq_record.id)
+            for seq_record in items_as_seq_records
+        ]
+    
+    if items_as_seq_features is None:
+        raise Exception("No information on sequence positions")
+
     if not hasattr(clustering, 'children_'):
         
         if dist_matrix is not None:
@@ -350,6 +359,14 @@ def clustering_to_phylogeny(
                 clustering.fit(item_vs_position_array)
             else:
                 raise Exception('No data available to perform clustering')
+    
+    assert_equal(
+        ['len(items_as_seq_features)','clustering.n_leaves_'],
+        locals=locals(),
+        error_template_fun=(
+            lambda values: f"Clustering returned wrong numer of leaves: {values[1][1]} instead of {values[0][1]}"
+        )
+    )
     
     aggregation_result = SimplePhylogenyWithDistances(
         num_leaves=clustering.n_leaves_,
