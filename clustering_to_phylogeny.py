@@ -7,6 +7,7 @@ from Bio.SeqFeature import SeqFeature
 from Bio.SeqRecord import SeqRecord
 from Bio.Phylo.PhyloXML import Clade, Phylogeny
 from featureUtils import feature_to_seq
+from assertions import assert_equal
 
 class SimplePhylogeny:
     num_leaves: int
@@ -46,7 +47,7 @@ class SimplePhylogeny:
         )
         
     def get_leaves_in_order(
-        self, clade_index: int = None
+        self, clade_index: int | None = None
     ) -> list[int]:
         if clade_index is None:
             clade_index = self.root_clade_index
@@ -84,7 +85,7 @@ class SimplePhylogenyWithDistances(SimplePhylogeny):
         )
     
 class SimplePhylogenyWithBranchLengths(SimplePhylogeny):
-    branch_lengths: list[int] = None
+    branch_lengths: list[int] | None = None
     
     def __init__(
         self,
@@ -295,17 +296,26 @@ class ClusteringToPhylogenyResult:
     item_position_to_leaf_index: list[int]
 
 def clustering_to_phylogeny(
-    clustering: AgglomerativeClustering = None,
-    items_vs_feature_array = None,
-    items_as_seq_records: list[SeqRecord] = None,
-    items_as_seq_features: list[SeqFeature] = None,
-    seq_references: dict[SeqRecord] = None,
-    dist_matrix: np.ndarray = None,
+    clustering: AgglomerativeClustering | None = None,
+    item_vs_position_array = None,
+    items_as_seq_records: list[SeqRecord] | None = None,
+    items_as_seq_features: list[SeqFeature] | None = None,
+    seq_references: dict[SeqRecord] | None = None,
+    dist_matrix: np.ndarray | None = None,
     compute_distances: bool = True,
-    linkage='single',
-    metric='euclidean',
+    linkage : str = 'single',
+    metric : str = 'euclidean',
     sort: bool = True
 ) -> ClusteringToPhylogenyResult:
+    
+    assert_equal([
+        'clustering.n_leaves_',
+        'len(item_vs_position_array)',
+        'len(items_as_seq_records)',
+        'len(items_as_seq_features)',
+        'dist_matrix.shape[0]',
+        'dist_matrix.shape[1]'
+    ], locals=locals())
     
     if clustering is None:
         clustering = AgglomerativeClustering(
@@ -331,18 +341,18 @@ def clustering_to_phylogeny(
             clustering.fit(dist_matrix)
         else:
             if (items_as_seq_records is not None and 
-                items_vs_feature_array is None
+                item_vs_position_array is None
             ):
-                items_vs_feature_array = [
+                item_vs_position_array = [
                     str(seq.seq) for seq in items_as_seq_records
                 ]
-            if items_vs_feature_array is not None:
-                clustering.fit(items_vs_feature_array)
+            if item_vs_position_array is not None:
+                clustering.fit(item_vs_position_array)
             else:
                 raise Exception('No data available to perform clustering')
     
     aggregation_result = SimplePhylogenyWithDistances(
-        num_leaves=int(dist_matrix.shape[0]),
+        num_leaves=clustering.n_leaves_,
         children=[[int(subclade) for subclade in subclades] for subclades in clustering.children_],
         max_distances=[int(distance) for distance in clustering.distances_] if hasattr(clustering, 'distances_') else None
     )
