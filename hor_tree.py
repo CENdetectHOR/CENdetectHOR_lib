@@ -105,6 +105,48 @@ def phylogeny_to_hor_tree(
     allowed_mismatch_rate: float = 0.0,
     allow_hor_overlap: bool = False
 ) -> HORInSeq:
+    """Given a set of related DNA/RNA sequences, occurring in contiguous
+    blocks and called monomers, this function looks for higher order
+    repeats, i.e. repeats of sequence of families of sequences. 
+    It expects an arleady built phylogenetic tree of the monomers and a 
+    set of optional parameters.
+
+    The function has been designed with the purpose of analysing the
+    structure of repetitive patterns in centromeres, but there is no
+    reason it cannot be used in other contexts.
+
+    Parameters
+    ----------
+    phylogeny : Bio.Phylo.BaseTree.Tree
+        Phylogenetic tree of the monomers. Leaves must have positional
+        information of the corresponding sequence, either as attached
+        Sequence object in the case of PhyloXML trees (suggested) or
+        encoded in the leaf name using the <ref_seq>:<start>-<end>
+        format (this second option does not currently support
+        positioning in the negative strand).
+    max_allowed_gap: int, default=10
+        Maximum accepted gap (in number of bases) between monomers
+        considered contiguous for HOR discovery purposes.
+    min_loop_size: int, default=1
+        Minimum size of the loop of recognized HORs (unless you know
+        what your are doing, keep this with value one to get the full
+        tree, including monomeric regions).
+    max_loop_size: int, default=30,
+        Maximum loop length of recognized HORs.
+    min_loops: int = 5,
+        Minimum number of repetitions required for identifying as an HOR.
+    allowed_mismatch_rate: float, default=0.0
+        Max allowed mismatch rate when identitying an HOR an its
+        coverage.
+    allow_hor_overlap: bool, default=False
+        If true, multiple overlapping can be considered.
+        If false, the overlapping parts are assigned to one of the HORs.
+
+    Returns
+    -------
+    HORInSeq
+        The HORInSeq instance that is the root of the HOR tree.
+    """
     sfbc = SeqFeaturesByContiguity(
             seq_features=extract_features_from_leaves(phylogeny),
             max_allowed_gap=max_allowed_gap
