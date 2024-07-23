@@ -274,6 +274,8 @@ def build_string_distance_matrix_by_chunks(
     chunk_size = math.ceil(num_strings / num_chunks)
 
     print(f"Chunk size: {chunk_size}")
+    
+    num_chunks = math.ceil(num_strings / chunk_size)
 
     def chunk(index):
         offset = index * chunk_size
