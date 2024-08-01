@@ -100,7 +100,7 @@ def phylogeny_to_hor_tree(
     phylogeny: Tree,
     max_allowed_gap: int = 10,
     min_loop_size: int = 1,
-    max_loop_size: int = 30,
+    max_loop_size: int = 50,
     min_loops: int = 5,
     allowed_mismatch_rate: float = 0.0,
     allow_hor_overlap: bool = False
