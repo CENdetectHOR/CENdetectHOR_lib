@@ -1,7 +1,7 @@
 from collections.abc import Iterable
 from cluster import build_string_distance_matrix, get_seq_as_txt, merge_clusters, min_distance
-from featureUtils import feature_to_seq, label_to_phyloxml_sequence, location_to_feature, order_by_indices, order_matrix_by_indeces, sorted_locations_indeces
-from hor import HORInSeq, hor_tree_to_phylogeny, loops_to_HORs, name_hor_tree
+from featureUtils import feature_to_seq, label_to_phyloxml_sequence, location_to_feature, order_by_indices, order_matrix_by_indeces, sorted_locations_indices
+from hor import HORInSeq, hor_tree_as_phyloxml_phylogeny, loops_to_HORs, name_hor_tree
 from loops import LoopInSeq, LoopSpanInSeq, find_loops
 import numpy as np
 from Bio.Phylo.PhyloXML import Phyloxml, Clade, Other
@@ -305,7 +305,7 @@ def clusterings_with_hors(
                 reordered_indeces = positive_location_indexes + negative_location_indexes
             else:
                 print(f'Reorder all')
-                reordered_indeces = sorted_locations_indeces(monomer_locations)
+                reordered_indeces = sorted_locations_indices(monomer_locations)
             print(f'Indexes built, now reordering lists...')
             monomer_locations = order_by_indices(
                 monomer_locations, reordered_indeces)
@@ -479,7 +479,7 @@ def clusterings_with_hors(
             Phyloxml(
                 phylogenies=[
                     new_phylogeny(seq_tree_root),
-                    hor_tree_to_phylogeny(hor_tree_root)
+                    hor_tree_as_phyloxml_phylogeny(hor_tree_root)
                 ],
                 attributes={'xsd': 'http://www.w3.org/2001/XMLSchema'},
                 other=reference_seqs_element

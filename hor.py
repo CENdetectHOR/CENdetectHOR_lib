@@ -118,21 +118,31 @@ def name_hor_tree(
                 sub_hor,
                 node_prefix=f'{common_prefix_for_sub_hors}{sub_hor_index + 1}')
         
-def hor_to_clade(hor: HORInSeq) -> Clade:
-    clade_seq_str = ",".join([clade.name for clade in hor.hor.clade_seq])
-    return Clade(
-        # node_id=hor.id,
-        name=hor.id,
-        sequences=[Sequence(type='dna', location=location) for location in hor.locations],
-        clades=
-            [hor_to_clade(sub_hor) for sub_hor in hor.sub_hors]
-            if hasattr(hor, 'sub_hors') else [],
-        properties=[Property(value=clade_seq_str, ref='monomer_clade_seq', applies_to='clade', datatype='xsd:string')]
-    )
-
-def hor_tree_to_phylogeny(
+def hor_tree_as_phyloxml_phylogeny(
     hor_tree_root: HORInSeq,
-    name: str = 'hors'
+    name: str = 'hors',
+    set_branch_lengths: bool = True,
+    clade_depths: dict[Clade, float] | None = None
 ) -> Phylogeny:
+    if set_branch_lengths and clade_depths is None:
+        clade_depths = hor_tree_root.hor.clade_seq[0].root.depths()
+
+    def hor_to_clade(hor: HORInSeq, parent_hor_depth: float = 0) -> Clade:
+        clade_seq_str = ",".join([clade.name for clade in hor.hor.clade_seq])
+        hor_depth = (
+            max([clade_depths[clade] for clade in hor.hor.clade_seq])
+            if set_branch_lengths else parent_hor_depth + 1
+        )
+        return Clade(
+            # node_id=hor.id,
+            name=hor.id,
+            sequences=[Sequence(type='dna', location=location) for location in hor.locations],
+            branch_length=hor_depth - parent_hor_depth,
+            clades=
+                [hor_to_clade(sub_hor, parent_hor_depth=hor_depth) for sub_hor in hor.sub_hors]
+                if hasattr(hor, 'sub_hors') else [],
+            properties=[Property(value=clade_seq_str, ref='monomer_clade_seq', applies_to='clade', datatype='xsd:string')]
+        )
+
     return Phylogeny(root=hor_to_clade(hor_tree_root), name=name)
 

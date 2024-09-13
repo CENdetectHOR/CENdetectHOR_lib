@@ -138,7 +138,7 @@ class PhylogenyToLevelsResult:
     
 def phylogeny_to_levels(
     phylogeny: Tree,
-    item_position_to_leaf_index: list[int] = None,
+    item_position_to_leaf_index: list[int] | None = None,
     max_allowed_gap: int = 10
 ) -> PhylogenyToLevelsResult:
     if item_position_to_leaf_index is None:
