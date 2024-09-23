@@ -1,7 +1,9 @@
+from dataclasses import dataclass
 from Bio.Phylo.BaseTree import Tree, Clade
+from Bio.Phylo.PhyloXML import Phylogeny
 from Bio.SeqFeature import SeqFeature
 from featureUtils import SeqFeaturesByContiguity
-from hor import HORInSeq, loop_to_HOR, name_hor_tree
+from hor import HORInSeq, hor_tree_as_phyloxml_phylogeny, loop_to_HOR, name_hor_tree
 from hor_coherence import checkLoopInSeqSelfOverlap, checkSpanListSelfOverlap
 from loops import find_loops, loop_to_spans
 from phylogeny_to_levels import extract_features_from_leaves, phylogeny_to_levels
@@ -96,6 +98,11 @@ def levels_to_hor_tree(
     name_hor_tree(hor_tree_root)
     return hor_tree_root
 
+@dataclass
+class PhylogenyToHorTreeResult:
+    as_hor_in_seq: HORInSeq
+    as_phyloxml: Phylogeny
+
 def phylogeny_to_hor_tree(
     phylogeny: Tree,
     max_allowed_gap: int = 10,
@@ -103,8 +110,10 @@ def phylogeny_to_hor_tree(
     max_loop_size: int = 50,
     min_loops: int = 5,
     allowed_mismatch_rate: float = 0.0,
-    allow_hor_overlap: bool = False
-) -> HORInSeq:
+    allow_hor_overlap: bool = False,
+    discrete_sorted_levels: bool = False,
+    set_branch_lengths: bool | None = None
+) -> PhylogenyToHorTreeResult:
     """Given a set of related DNA/RNA sequences, occurring in contiguous
     blocks and called monomers, this function looks for higher order
     repeats, i.e. repeats of sequence of families of sequences. 
@@ -139,23 +148,40 @@ def phylogeny_to_hor_tree(
         Max allowed mismatch rate when identitying an HOR an its
         coverage.
     allow_hor_overlap: bool, default=False
-        If true, multiple overlapping can be considered.
-        If false, the overlapping parts are assigned to one of the HORs.
+        If True, multiple overlapping can be considered.
+        If False, the overlapping parts are assigned to one of the HORs.
+    discrete_sorted_levels: bool, default=False
+        If True, HORs are searched monomer-tree-level-wise where levels
+        are defined by height from leaves, without considering branch
+        lengths.
+        If False, HORs are searched monomer-tree-level-wise considering
+        branch lengths.
+    set_branch_lengths: bool, default=not discrete_sorted_levels
+        If True, branch lenghts for the HOR tree are set in the
+        generated PhyloXML, based on branch lengths in the monomer tree.
+        If False, branch lengths are not set.
+        Setting to True is meaningful only if discrete_sorted_levels is
+        set to False.
 
     Returns
     -------
-    HORInSeq
-        The HORInSeq instance that is the root of the HOR tree.
+    PhylogenyToHorTreeResult:
+        - as_hor_in_seq: HORInSeq
+            The HORInSeq instance that is the root of the HOR tree.
+        - as_phyloxml: Phylogeny
+            A PhyloXML phylogeny representating the HOR tree.
     """
+    
     sfbc = SeqFeaturesByContiguity(
             seq_features=extract_features_from_leaves(phylogeny),
             max_allowed_gap=max_allowed_gap
     )
     levels_res = phylogeny_to_levels(
         phylogeny=phylogeny,
-        item_position_to_leaf_index=sfbc.reordered_indices
+        item_position_to_leaf_index=sfbc.reordered_indices,
+        discrete_sorting=discrete_sorted_levels
     )
-    return levels_to_hor_tree(
+    hor_tree = levels_to_hor_tree(
         labelled_items_by_level=levels_res.labelled_items_by_level,
         clades_by_level=levels_res.clades_by_level,
         seq_features=sfbc.sorted_seq_features,
@@ -165,6 +191,17 @@ def phylogeny_to_hor_tree(
         min_loops=min_loops,
         allowed_mismatch_rate=allowed_mismatch_rate,
         allow_hor_overlap=allow_hor_overlap
+    )
+    
+    if set_branch_lengths is None:
+        set_branch_lengths = not discrete_sorted_levels
+    
+    return PhylogenyToHorTreeResult(
+        as_hor_in_seq=hor_tree,
+        as_phyloxml=hor_tree_as_phyloxml_phylogeny(
+            hor_tree,
+            set_branch_lengths=set_branch_lengths
+        )
     )
     
 def find_inversion_hors(
