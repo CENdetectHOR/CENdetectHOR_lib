@@ -16,7 +16,11 @@ def clades_equal(
     if len(clade_a.clades) == 0:
         return clade_a.name == clade_b.name
     return all([
-        clades_equal(clade_a.clades[subclade_index],clade_b.clades[subclade_index])
+        clades_equal(
+            clade_a.clades[subclade_index],
+            clade_b.clades[subclade_index],
+            check_branch_lengths=check_branch_lengths
+        )
         for subclade_index in range(len(clade_a))
     ])      
 
