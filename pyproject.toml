@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dna-repeat-discovery"
+dynamic = ["version"]
+description = 'Library to characterise tandem repeats in genomic sequences in terms of evolutionary relationships, looking for so called higher-order-repeats. It has been pecifically designed to analyse non-coding centromeric high-repetition regions of chromosomes.'
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+keywords = []
+authors = [
+  { name = "Miguel Ceriani", email = "miguel.ceriani@gmail.com" },
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12"
+]
+dependencies = []
+
+[project.urls]
+Documentation = "https://github.com/CENdetectHOR/dna-repeat-discovery#readme"
+Issues = "https://github.com/CENdetectHOR/dna-repeat-discovery/issues"
+Source = "https://github.com/CENdetectHOR/dna-repeat-discovery"
+
+[tool.hatch.version]
+path = "src/dna_repeat_discovery/__about__.py"
