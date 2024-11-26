@@ -1,9 +1,4 @@
-from dataclasses import dataclass
-import numpy as np
-from sklearn.cluster import AgglomerativeClustering
-from treeFromClusters import features_to_leaves, new_clade, new_phylogeny
-from Bio.SeqFeature import SeqFeature
-from Bio.Phylo.PhyloXML import Clade, Phylogeny, Sequence, Phyloxml
+from Bio.Phylo.PhyloXML import Clade, Phylogeny
 
 def clades_equal(
     clade_a: Clade, clade_b: Clade,
