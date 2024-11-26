@@ -2,9 +2,8 @@ from dataclasses import dataclass
 import re
 from typing import Optional
 from Bio.Phylo.BaseTree import Tree, Clade
-
-from featureUtils import SeqFeaturesByContiguity, label_to_feature, location_to_feature
 from Bio.SeqFeature import SimpleLocation
+from .featureUtils import SeqFeaturesByContiguity, label_to_feature, location_to_feature
 
 @dataclass
 class CladesByLevelResult:

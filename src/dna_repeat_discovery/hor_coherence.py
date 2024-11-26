@@ -1,8 +1,8 @@
 from Bio.Phylo.BaseTree import Tree, Clade
 from Bio.SeqFeature import SimpleLocation
 
-from loops import LoopInSeq, LoopSpanInSeq
-from phylogeny_to_levels import parse_location
+from .loops import LoopInSeq, LoopSpanInSeq
+from .phylogeny_to_levels import parse_location
 
 def locationContainsLocation(
     containingLocation: SimpleLocation,

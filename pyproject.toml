@@ -26,7 +26,8 @@ dependencies = [
   "editdistance>=0.8.1",
   "matplotlib>=3.9.2",
   "numpy>=2.0.2",
-  "scikit-learn>=1.5.2"
+  "scikit-learn>=1.5.2",
+  "typing_extensions>=4.12.2"
 ]
 
 [project.urls]

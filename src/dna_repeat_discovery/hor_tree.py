@@ -3,11 +3,11 @@ from typing import Optional
 from Bio.Phylo.BaseTree import Tree, Clade
 from Bio.Phylo.PhyloXML import Phylogeny
 from Bio.SeqFeature import SeqFeature
-from featureUtils import SeqFeaturesByContiguity
-from hor import HORInSeq, hor_tree_as_phyloxml_phylogeny, loop_to_HOR, name_hor_tree
-from hor_coherence import checkLoopInSeqSelfOverlap, checkSpanListSelfOverlap
-from loops import find_loops, loop_to_spans
-from phylogeny_to_levels import extract_features_from_leaves, phylogeny_to_levels
+from .featureUtils import SeqFeaturesByContiguity
+from .hor import HORInSeq, hor_tree_as_phyloxml_phylogeny, loop_to_HOR, name_hor_tree
+from .hor_coherence import checkLoopInSeqSelfOverlap, checkSpanListSelfOverlap
+from .loops import find_loops, loop_to_spans
+from .phylogeny_to_levels import extract_features_from_leaves, phylogeny_to_levels
 
 def levels_to_hor_tree(
     labelled_items_by_level: list[list[int]],

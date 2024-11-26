@@ -1,6 +1,6 @@
 from Bio.SeqFeature import SeqFeature
-from featureUtils import SeqFeaturesByContiguity
-from loops import LoopInSeq, find_loops
+from .featureUtils import SeqFeaturesByContiguity
+from .loops import LoopInSeq, find_loops
 
 def find_inversion_loops(
     seq_features: list[SeqFeature],

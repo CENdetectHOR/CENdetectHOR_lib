@@ -4,7 +4,7 @@ import matplotlib.patches as patches
 import matplotlib.colors as mcolors
 import matplotlib.gridspec as gridspec
 from Bio import Phylo
-from treeFromClusters import new_phylogeny
+from .treeFromClusters import new_phylogeny
 
 
 def show_hor(hor_in_seq, tree=None, seq_length=None,

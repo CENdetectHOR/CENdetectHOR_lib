@@ -3,12 +3,12 @@ import json
 from typing import Optional
 import numpy as np
 from sklearn.cluster import AgglomerativeClustering
-from treeFromClusters import feature_to_leave, new_phylogeny
 from Bio.SeqFeature import SeqFeature
 from Bio.SeqRecord import SeqRecord
 from Bio.Phylo.PhyloXML import Clade, Phylogeny
-from featureUtils import feature_to_seq, label_to_feature
-from assertions import assert_equal
+from .treeFromClusters import feature_to_leave, new_phylogeny
+from .featureUtils import feature_to_seq, label_to_feature
+from .assertions import assert_equal
 
 class SimplePhylogeny:
     num_leaves: int
