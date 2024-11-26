@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Optional
 from Bio.Phylo.BaseTree import Tree, Clade
 from Bio.Phylo.PhyloXML import Phylogeny
 from Bio.SeqFeature import SeqFeature
@@ -112,7 +113,7 @@ def phylogeny_to_hor_tree(
     allowed_mismatch_rate: float = 0.0,
     allow_hor_overlap: bool = False,
     discrete_sorted_levels: bool = False,
-    set_branch_lengths: bool | None = None
+    set_branch_lengths: Optional[bool] = None
 ) -> PhylogenyToHorTreeResult:
     """Given a set of related DNA/RNA sequences, occurring in contiguous
     blocks and called monomers, this function looks for higher order

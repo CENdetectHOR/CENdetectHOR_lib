@@ -2,8 +2,9 @@ from collections.abc import Iterable
 from typing_extensions import Self
 from loops import LoopSpanInSeq, LoopInSeq
 from Bio.Phylo import BaseTree
-from Bio.Phylo.PhyloXML import Clade, Phylogeny, Sequence, Phyloxml, Property
+from Bio.Phylo.PhyloXML import Clade, Phylogeny, Sequence, Property
 from Bio.SeqFeature import SeqFeature, SimpleLocation, CompoundLocation, Location
+from typing import Optional
 
 class HOR:
     clade_seq: list[BaseTree.Clade]
@@ -122,7 +123,7 @@ def hor_tree_as_phyloxml_phylogeny(
     hor_tree_root: HORInSeq,
     name: str = 'hors',
     set_branch_lengths: bool = True,
-    clade_depths: dict[Clade, float] | None = None
+    clade_depths: Optional[dict[Clade, float]] = None
 ) -> Phylogeny:
     if set_branch_lengths and clade_depths is None:
         clade_depths = hor_tree_root.hor.clade_seq[0].root.depths()

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import json
+from typing import Optional
 import numpy as np
 from sklearn.cluster import AgglomerativeClustering
 from treeFromClusters import feature_to_leave, new_phylogeny
@@ -47,7 +48,7 @@ class SimplePhylogeny:
         )
         
     def get_leaves_in_order(
-        self, clade_index: int | None = None
+        self, clade_index: Optional[int] = None
     ) -> list[int]:
         if clade_index is None:
             clade_index = self.root_clade_index
@@ -85,7 +86,7 @@ class SimplePhylogenyWithDistances(SimplePhylogeny):
         )
     
 class SimplePhylogenyWithBranchLengths(SimplePhylogeny):
-    branch_lengths: list[int] | None = None
+    branch_lengths: Optional[list[int]] = None
     
     def __init__(
         self,
@@ -296,12 +297,12 @@ class ClusteringToPhylogenyResult:
     item_position_to_leaf_index: list[int]
 
 def clustering_to_phylogeny(
-    clustering: AgglomerativeClustering | None = None,
+    clustering: Optional[AgglomerativeClustering] = None,
     item_vs_position_array = None,
-    items_as_seq_records: list[SeqRecord] | None = None,
-    items_as_seq_features: list[SeqFeature] | None = None,
-    seq_references: dict[SeqRecord] | None = None,
-    dist_matrix: np.ndarray | None = None,
+    items_as_seq_records: Optional[list[SeqRecord]] = None,
+    items_as_seq_features: Optional[list[SeqFeature]] = None,
+    seq_references: Optional[dict[SeqRecord]] = None,
+    dist_matrix: Optional[np.ndarray] = None,
     compute_distances: bool = True,
     linkage : str = 'single',
     metric : str = 'euclidean',

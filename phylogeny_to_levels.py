@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 import re
+from typing import Optional
 from Bio.Phylo.BaseTree import Tree, Clade
 
-from featureUtils import SeqFeaturesByContiguity, label_to_feature, label_to_location, location_to_feature
+from featureUtils import SeqFeaturesByContiguity, label_to_feature, location_to_feature
 from Bio.SeqFeature import SimpleLocation
 
 @dataclass
@@ -183,7 +184,7 @@ class PhylogenyToLevelsResult:
     
 def phylogeny_to_levels(
     phylogeny: Tree,
-    item_position_to_leaf_index: list[int] | None = None,
+    item_position_to_leaf_index: Optional[list[int]] = None,
     max_allowed_gap: int = 10,
     discrete_sorting: bool = False
 ) -> PhylogenyToLevelsResult:
