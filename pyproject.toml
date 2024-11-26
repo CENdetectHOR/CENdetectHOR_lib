@@ -21,7 +21,13 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12"
 ]
-dependencies = []
+dependencies = [
+  "biopython>=1.84",
+  "editdistance>=0.8.1",
+  "matplotlib>=3.9.2",
+  "numpy>=2.0.2",
+  "scikit-learn>=1.5.2"
+]
 
 [project.urls]
 Documentation = "https://github.com/CENdetectHOR/dna-repeat-discovery#readme"
