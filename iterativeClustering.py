@@ -1,6 +1,7 @@
 from collections.abc import Iterable
-from cluster import build_string_distance_matrix, get_seq_as_txt, merge_clusters, min_distance
-from featureUtils import feature_to_seq, label_to_phyloxml_sequence, location_to_feature, order_by_indices, order_matrix_by_indeces, sorted_locations_indices
+from distance import build_string_distance_matrix, min_distance
+from cluster import merge_clusters
+from featureUtils import feature_to_seq, get_seq_as_txt, label_to_phyloxml_sequence, location_to_feature, order_by_indices, order_matrix_by_indeces, sorted_locations_indices
 from hor import HORInSeq, hor_tree_as_phyloxml_phylogeny, loops_to_HORs, name_hor_tree
 from loops import LoopInSeq, LoopSpanInSeq, find_loops
 import numpy as np

@@ -1,11 +1,5 @@
-from functools import partial
-import multiprocessing
 import math
 import numpy as np
-import editdistance
-from Bio.SeqRecord import SeqRecord
-from multiprocessing import Pool
-from dataclasses import dataclass
 
 def matrix_to_triu(matrix: np.ndarray) -> np.ndarray:
     return matrix[np.triu_indices_from(matrix, k=1)]

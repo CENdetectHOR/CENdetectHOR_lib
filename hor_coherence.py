@@ -1,8 +1,5 @@
-from collections.abc import Iterable
-from typing import Self
 from Bio.Phylo.BaseTree import Tree, Clade
-# from Bio.Phylo.PhyloXML import Clade, Phylogeny, Sequence, Phyloxml, Property
-from Bio.SeqFeature import SeqFeature, SimpleLocation, CompoundLocation, Location
+from Bio.SeqFeature import SimpleLocation
 
 from loops import LoopInSeq, LoopSpanInSeq
 from phylogeny_to_levels import parse_location

@@ -1,5 +1,5 @@
 from itertools import accumulate
-from cluster import get_seq_as_txt
+from featureUtils import get_seq_as_txt
 
 def normalize_loop(loop_seq: list[int]) -> tuple[list[int], int]:
     def invert_pos(pos: int) -> int:

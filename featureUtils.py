@@ -287,3 +287,6 @@ def remove_overlapping_features(
         else:
             filtered_features.append(curr_feature)
     return filtered_features
+
+def get_seq_as_txt(seq: list[int]) -> str:
+    return "".join([(chr(65 + symbol) if symbol < 26 else (chr(71 + symbol) if symbol < 52 else '*')) for symbol in seq])
