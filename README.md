@@ -1,7 +1,7 @@
-# dna-repeat-discovery
+# CENdetectHOR Library (cen_detect_hor)
 
-[![PyPI - Version](https://img.shields.io/pypi/v/dna-repeat-discovery.svg)](https://pypi.org/project/dna-repeat-discovery)
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/dna-repeat-discovery.svg)](https://pypi.org/project/dna-repeat-discovery)
+[![PyPI - Version](https://img.shields.io/pypi/v/cen_detect_hor.svg)](https://pypi.org/project/cen_detect_hor)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/cen_detect_hor.svg)](https://pypi.org/project/cen_detect_hor)
 
 Library to characterise tandem repeats in genomic sequences in terms of evolutionary relationships, looking for so called higher-order-repeats.
 It has been pecifically designed to analyse non-coding centromeric high-repetition regions of chromosomes. 
@@ -16,9 +16,9 @@ It has been pecifically designed to analyse non-coding centromeric high-repetiti
 ## Installation
 
 ```console
-pip install dna-repeat-discovery
+pip install cen_detect_hor
 ```
 
 ## License
 
-`dna-repeat-discovery` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.
+`cen_detect_hor` is distributed under the terms of the [MIT](https://spdx.org/licenses/MIT.html) license.

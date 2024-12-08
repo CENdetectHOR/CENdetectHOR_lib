@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "dna-repeat-discovery"
+name = "cen_detect_hor"
 dynamic = ["version"]
 description = 'Library to characterise tandem repeats in genomic sequences in terms of evolutionary relationships, looking for so called higher-order-repeats. It has been pecifically designed to analyse non-coding centromeric high-repetition regions of chromosomes.'
 readme = "README.md"
@@ -31,9 +31,9 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/CENdetectHOR/dna-repeat-discovery#readme"
-Issues = "https://github.com/CENdetectHOR/dna-repeat-discovery/issues"
-Source = "https://github.com/CENdetectHOR/dna-repeat-discovery"
+Documentation = "https://github.com/CENdetectHOR/CENdetectHOR_lib#readme"
+Issues = "https://github.com/CENdetectHOR/CENdetectHOR_lib/issues"
+Source = "https://github.com/CENdetectHOR/CENdetectHOR_lib"
 
 [tool.hatch.version]
-path = "src/dna_repeat_discovery/__about__.py"
+path = "src/cen_detect_hor/__about__.py"
