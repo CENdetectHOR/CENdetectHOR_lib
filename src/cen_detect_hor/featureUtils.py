@@ -223,6 +223,12 @@ class SeqFeaturesByContiguity:
             for seq_feature in self.sorted_seq_features
         ]
 
+        def locations_gap(location_1, location_2):
+            return max(
+                location_1.start - location_2.end,
+                location_2.start - location_1.end,
+            )
+
         self.gap_indices = [
             i + 1
             for i in range(len(sorted_seq_locations) - 1)
@@ -231,7 +237,7 @@ class SeqFeaturesByContiguity:
                     independent_strands and
                     sorted_seq_locations[i + 1].strand != sorted_seq_locations[i].strand
                 )
-                or sorted_seq_locations[i + 1].start - sorted_seq_locations[i].end > self.max_allowed_gap
+                or locations_gap(sorted_seq_locations[i], sorted_seq_locations[i + 1]) > self.max_allowed_gap
         ]
         
 def feature_len(feature: SeqFeature) -> int:
