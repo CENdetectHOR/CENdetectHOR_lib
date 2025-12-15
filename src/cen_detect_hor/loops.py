@@ -181,6 +181,7 @@ def find_loops(
     gap_indices: list[int] = None,
     seq_spans: list[tuple[int,int]] = None,
     min_loop_size: int = 2, max_loop_size: int = 30, min_loops: int = 3,
+    min_diversity: int = 1,
     allowed_mismatch_rate: float = 0,
     allow_overlap: bool = False
 ) -> list[LoopInSeq]:
@@ -214,55 +215,58 @@ def find_loops(
     loops_found: dict[str,LoopInSeq] = {} #defaultdict(list)
     for seqIndex, seq in enumerate(seqs):
 
-        curr_loops = {loop_size:0 for loop_size in range(1, max_loop_size + 1)}
-        curr_loops_mismatches = {loop_size:0 for loop_size in range(1, max_loop_size + 1)}
+        # curr_loops = [0 for loop_size in range(min_loop_size, max_loop_size + 1)]
+        # curr_loops_mismatches = [0 for loop_size in range(min_loop_size, max_loop_size + 1)]
+        curr_loops = [0] * max_loop_size - min_loop_size + 1
+        curr_loops_mismatches = [0] * max_loop_size - min_loop_size + 1
 
         def last_of_size(curr_position, loop_size):
-            if curr_loops[loop_size] >= (min_loops - 1) * loop_size:
-                loop_start = curr_position - curr_loops[loop_size] - loop_size
-                loop_length = curr_loops[loop_size] + loop_size
+            loop_size_offset = loop_size - min_loop_size
+            if curr_loops[loop_size_offset] >= (min_loops - 1) * loop_size:
+                loop_start = curr_position - curr_loops[loop_size_offset] - loop_size
+                loop_length = curr_loops[loop_size_offset] + loop_size
                 loop_laps = loop_length // loop_size
                 loop_items = seq[loop_start:loop_start + loop_size]
-                normal_loop, in_loop_start_position = normalize_loop(loop_items)
-                normal_loop_str = str(normal_loop)
-                loop_span = LoopSpanInSeq(
-                    seq_offsets[seqIndex] + loop_start,
-                    loop_length, loop_laps, in_loop_start_position,
-                    num_mismatches=curr_loops_mismatches[loop_size])
-                if normal_loop_str not in loops_found:
-                    loops_found[normal_loop_str] = LoopInSeq(
-                        Loop(normal_loop),
-                        [loop_span]
-                    )
-                else:
-                    loops_found[normal_loop_str].add_span(loop_span)
+                if len(set(loop_items)) >= min_diversity:
+                    normal_loop, in_loop_start_position = normalize_loop(loop_items)
+                    normal_loop_str = str(normal_loop)
+                    loop_span = LoopSpanInSeq(
+                        seq_offsets[seqIndex] + loop_start,
+                        loop_length, loop_laps, in_loop_start_position,
+                        num_mismatches=curr_loops_mismatches[loop_size_offset])
+                    if normal_loop_str not in loops_found:
+                        loops_found[normal_loop_str] = LoopInSeq(
+                            Loop(normal_loop),
+                            [loop_span]
+                        )
+                    else:
+                        loops_found[normal_loop_str].add_span(loop_span)
         
         for curr_position, curr_symbol in enumerate(seq):
             max_loop_length_closed = 0
-            for loop_size in range(1, min(max_loop_size, curr_position) + 1):
+            for loop_size in range(min_loop_size, min(max_loop_size, curr_position) + 1):
+                loop_size_offset = loop_size - min_loop_size
                 if seq[curr_position - loop_size] == curr_symbol:
-                    curr_loops[loop_size] += 1
-                elif curr_loops_mismatches[loop_size] + 1 <= (curr_loops[loop_size] + 1) * allowed_mismatch_rate:
-                    curr_loops[loop_size] += 1
-                    curr_loops_mismatches[loop_size] += 1
+                    curr_loops[loop_size_offset] += 1
+                elif curr_loops_mismatches[loop_size_offset] + 1 <= (curr_loops[loop_size_offset] + 1) * allowed_mismatch_rate:
+                    curr_loops[loop_size_offset] += 1
+                    curr_loops_mismatches[loop_size_offset] += 1
                 else:
-                    if curr_loops[loop_size] > max_loop_length_closed:
+                    if curr_loops[loop_size_offset] > max_loop_length_closed:
                         last_of_size(curr_position, loop_size)
-                        max_loop_length_closed = curr_loops[loop_size]
-                    curr_loops[loop_size] = 0
-                    curr_loops_mismatches[loop_size] = 0
+                        max_loop_length_closed = curr_loops[loop_size_offset]
+                    curr_loops[loop_size_offset] = 0
+                    curr_loops_mismatches[loop_size_offset] = 0
         
         max_loop_length_closed = 0
-        for loop_size in range(1, max_loop_size + 1):
-            if curr_loops[loop_size] > max_loop_length_closed:
+        for loop_size in range(min_loop_size, max_loop_size + 1):
+            loop_size_offset = loop_size - min_loop_size
+            if curr_loops[loop_size_offset] > max_loop_length_closed:
                 last_of_size(len(seq), loop_size)
-                max_loop_length_closed = curr_loops[loop_size]
+                max_loop_length_closed = curr_loops[loop_size_offset]
 
     loops = list(loops_found.values())
 
-    if min_loop_size > 1:
-        loops = [loop for loop in loops if len(loop.loop.loop_seq) >= min_loop_size]
-        
     if not allow_overlap:
         loops.sort(key=lambda loop: len(loop.loop.loop_seq), reverse=True)
         filtered_loops = []

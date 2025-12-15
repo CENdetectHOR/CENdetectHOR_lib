@@ -28,5 +28,6 @@ def find_inversion_loops(
         max_loop_size=max_loop_size,
         min_loops=min_loops,
         allowed_mismatch_rate=allowed_mismatch_rate,
-        allow_overlap=allow_hor_overlap
+        allow_overlap=allow_hor_overlap,
+        min_diversity=2
     )    
