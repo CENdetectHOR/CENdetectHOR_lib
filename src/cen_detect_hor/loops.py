@@ -275,6 +275,7 @@ def find_loops(
                 spans_to_extract=available_spans,
                 loop_size=len(loop.loop.loop_seq)
             )
+            extracted_spans = [span for span in extracted_spans if span.num_of_laps >= min_loops]
             if len(extracted_spans) > 0:
                 filtered_loop = LoopInSeq(
                     loop=loop.loop,
