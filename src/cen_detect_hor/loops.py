@@ -215,10 +215,8 @@ def find_loops(
     loops_found: dict[str,LoopInSeq] = {} #defaultdict(list)
     for seqIndex, seq in enumerate(seqs):
 
-        # curr_loops = [0 for loop_size in range(min_loop_size, max_loop_size + 1)]
-        # curr_loops_mismatches = [0 for loop_size in range(min_loop_size, max_loop_size + 1)]
-        curr_loops = [0] * max_loop_size - min_loop_size + 1
-        curr_loops_mismatches = [0] * max_loop_size - min_loop_size + 1
+        curr_loops = [0] * (max_loop_size - min_loop_size + 1)
+        curr_loops_mismatches = [0] * (max_loop_size - min_loop_size + 1)
 
         def last_of_size(curr_position, loop_size):
             loop_size_offset = loop_size - min_loop_size
