@@ -25,7 +25,8 @@ def levels_to_hor_tree(
     def level_to_hors(
         spans_to_search: list[tuple[int,int]],
         level: int,
-        curr_loop_diversity: int
+        curr_loop_diversity: int,
+        min_loop_size: int
     ):
         # print(f"Level: {level}")
         if level == 0:
@@ -67,7 +68,8 @@ def levels_to_hor_tree(
             return level_to_hors(
                 spans_to_search=loop_to_spans(loops_in_seq[0]),
                 level=level - 1,
-                curr_loop_diversity=curr_loop_diversity
+                curr_loop_diversity=curr_loop_diversity,
+                min_loop_size=min_loop_size
             )
         
         hors_in_seq = []
@@ -80,7 +82,8 @@ def levels_to_hor_tree(
             hor_in_seq.sub_hors = level_to_hors(
                 spans_to_search=loop_to_spans(loop_in_seq),
                 level=level - 1,
-                curr_loop_diversity=len(set(loop_in_seq.loop.loop_seq))
+                curr_loop_diversity=len(set(loop_in_seq.loop.loop_seq)),
+                min_loop_size=len(loop_in_seq.loop.loop_seq)                
             )
             hors_in_seq.append(hor_in_seq)
             
@@ -94,7 +97,8 @@ def levels_to_hor_tree(
             for split_index in range(num_splits)
         ],
         level=len(labelled_items_by_level) - 1,
-        curr_loop_diversity=0
+        curr_loop_diversity=0,
+        min_loop_size=min_loop_size
     )[0]
     name_hor_tree(hor_tree_root)
     return hor_tree_root
