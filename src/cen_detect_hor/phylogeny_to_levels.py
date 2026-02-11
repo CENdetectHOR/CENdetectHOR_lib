@@ -59,6 +59,7 @@ class CladeHeights:
         ):
             if weighted_height > curr_weighted_height:
                 discrete_height += 1
+                curr_weighted_height = weighted_height
             self.__clade_heights_dict[clade] = discrete_height
         self.tree_height = discrete_height
     
