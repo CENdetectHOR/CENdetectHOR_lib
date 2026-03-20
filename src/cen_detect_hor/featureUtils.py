@@ -260,10 +260,10 @@ def remove_overlapping_features(
     if max_allowed_overlap is None and not keep_overlap_warning:
         return
     filtered_features: list[SeqFeature] = []
-    sorted_features = sorted(features, key=lambda ref: (ref.ref, ref.location.start))
+    sorted_features = sorted(features, key=lambda ref: (ref.location.ref, ref.location.start))
     for curr_feature in sorted_features:
         prev_feature = filtered_features[-1] if len(filtered_features) > 0 else None
-        if prev_feature is not None and curr_feature.ref == prev_feature.ref and curr_feature.location.start < prev_feature.location.end:
+        if prev_feature is not None and curr_feature.location.ref == prev_feature.location.ref and curr_feature.location.start < prev_feature.location.end:
             if prev_feature.location.end - curr_feature.location.start > max_allowed_overlap:
                 keep_previous = (
                     (
