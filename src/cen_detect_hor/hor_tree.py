@@ -228,7 +228,7 @@ def find_inversion_hors(
     return levels_to_hor_tree(
         labelled_items_by_level=[
             sfbc.reordered_indices,
-            [(1 - seq_feature.strand) // 2 for seq_feature in sfbc.sorted_seq_features],
+            [(1 - seq_feature.location.strand) // 2 for seq_feature in sfbc.sorted_seq_features],
             [0 for seq_feature in sfbc.sorted_seq_features]
         ],
         clades_by_level=[
@@ -245,7 +245,7 @@ def find_inversion_hors(
         allow_hor_overlap=allow_hor_overlap
     )
     return find_loops(
-        whole_seq=[(1 - seq_feature.strand) // 2 for seq_feature in sfbc.sorted_seq_features],
+        whole_seq=[(1 - seq_feature.location.strand) // 2 for seq_feature in sfbc.sorted_seq_features],
         seq_spans=[
             (split_limits[split_index], split_limits[split_index + 1])
             for split_index in range(num_splits)
