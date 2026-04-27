@@ -131,7 +131,7 @@ def hor_tree_as_phyloxml_phylogeny(
     def hor_to_clade(hor: HORInSeq, parent_hor_depth: float = 0) -> Clade:
         clade_seq_str = ",".join([clade.name for clade in hor.hor.clade_seq])
         hor_depth = (
-            max([clade_depths[clade] for clade in hor.hor.clade_seq])
+            min([clade_depths[clade] for clade in hor.hor.clade_seq])
             if set_branch_lengths else parent_hor_depth + 1
         )
         return Clade(
